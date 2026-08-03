@@ -35,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -53,7 +54,13 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import kr.prism.nowflix.data.FileMetaCacheStore
+import kr.prism.nowflix.data.PlaylistMetaRepository
+import kr.prism.nowflix.data.RetrofitYoutubeSource
+import kr.prism.nowflix.data.Video
+import kr.prism.nowflix.data.YoutubeService
 import kr.prism.nowflix.ui.PartDetailScreen
+import kr.prism.nowflix.ui.PlayerScreen
 
 private val NowflixRed = Color(0xFFE50914)
 private val BodyBg = Color(0xFF0B0B0C)
@@ -78,12 +85,30 @@ class MainActivity : ComponentActivity() {
         hideSystemBars()
         setContent {
             MaterialTheme {
-                // Two-screen kiosk: home grid <-> a part's video list. State-hoisted
-                // here rather than a nav library — there are exactly two destinations.
+                // Three-screen kiosk: home grid -> a part's video list -> the player.
+                // State-hoisted here rather than a nav library — the destinations are fixed.
                 var selected by remember { mutableStateOf<Part?>(null) }
-                when (val part = selected) {
-                    null -> HomeScreen(onPartClick = { selected = it })
-                    else -> PartDetailScreen(part = part, onBack = { selected = null })
+                var playback by remember { mutableStateOf<Playback?>(null) }
+                val descriptions = rememberDescriptions()
+
+                val session = playback
+                val part = selected
+                when {
+                    // Player sits on top of the detail screen; leaving it returns to the list.
+                    session != null -> PlayerScreen(
+                        videos = session.videos,
+                        startIndex = session.startIndex,
+                        onBack = { playback = null },
+                    )
+                    part != null -> PartDetailScreen(
+                        part = part,
+                        description = descriptions[part.playlistId].orEmpty(),
+                        onBack = { selected = null },
+                        onPlay = { videos, startIndex ->
+                            playback = Playback(videos, startIndex)
+                        },
+                    )
+                    else -> HomeScreen(onPartClick = { selected = it })
                 }
             }
         }
@@ -103,6 +128,25 @@ class MainActivity : ComponentActivity() {
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
     }
+}
+
+/** An active playback session: the list to play through and where to start. */
+private data class Playback(val videos: List<Video>, val startIndex: Int)
+
+/**
+ * Cache-first playlist descriptions, keyed by playlistId. One `playlists.list` call for all
+ * parts; the map is empty until it resolves, so the detail panel just hides the block.
+ */
+@Composable
+private fun rememberDescriptions(): Map<String, String> {
+    val context = LocalContext.current
+    val playlistIds = remember { PartsRepository.load(context).map { it.playlistId } }
+    val state = produceState(initialValue = emptyMap<String, String>(), playlistIds) {
+        val source = RetrofitYoutubeSource(YoutubeService.api, BuildConfig.YOUTUBE_API_KEY)
+        val repo = PlaylistMetaRepository(source, FileMetaCacheStore(context.filesDir))
+        value = repo.descriptions(playlistIds)
+    }
+    return state.value
 }
 
 @Composable

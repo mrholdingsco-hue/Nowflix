@@ -17,7 +17,8 @@ val youtubeApiKey: String = Properties().apply {
 
 android {
     namespace = "kr.prism.nowflix"
-    compileSdk = 34
+    // 35 is required by the YouTube player library's transitive Compose/lifecycle deps.
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "kr.prism.nowflix"
@@ -55,6 +56,7 @@ android {
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
@@ -67,6 +69,7 @@ dependencies {
     implementation(libs.retrofit.kotlinx.serialization)
     implementation(libs.okhttp)
     implementation(libs.coil.compose)
+    implementation(libs.youtube.player)
     debugImplementation(libs.androidx.ui.tooling)
 
     testImplementation(libs.junit)

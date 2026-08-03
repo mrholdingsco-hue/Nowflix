@@ -88,3 +88,21 @@ data class VideoStatistics(
     // Decimal string; absent when the owner hides view counts.
     val viewCount: String? = null,
 )
+
+/** Wire models for `playlists.list` (part=snippet) — the playlist's own title + description. */
+@Serializable
+data class PlaylistsResponse(
+    val items: List<PlaylistResourceDto> = emptyList(),
+)
+
+@Serializable
+data class PlaylistResourceDto(
+    val id: String = "",
+    val snippet: PlaylistSnippet? = null,
+)
+
+@Serializable
+data class PlaylistSnippet(
+    val title: String = "",
+    val description: String = "",
+)

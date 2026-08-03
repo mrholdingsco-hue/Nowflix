@@ -1,14 +1,9 @@
 package kr.prism.nowflix.ui
 
-import android.util.Log
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,45 +38,28 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import kr.prism.nowflix.BuildConfig
 import kr.prism.nowflix.Part
 import kr.prism.nowflix.data.FileCacheStore
 import kr.prism.nowflix.data.PlaylistRepository
 import kr.prism.nowflix.data.PlaylistResult
-import kr.prism.nowflix.data.RelativeDate
 import kr.prism.nowflix.data.RetrofitYoutubeSource
 import kr.prism.nowflix.data.Video
-import kr.prism.nowflix.data.VideoDuration
-import kr.prism.nowflix.data.ViewCount
 import kr.prism.nowflix.data.YoutubeService
 import java.time.OffsetDateTime
 
 // YouTube dark theme. Flat #0F0F0F canvas, no cards, no dividers.
 private val Background = Color(0xFF0F0F0F)
-private val RowHighlight = Color(0xFF272727)
-private val MetaGray = Color(0xFFAAAAAA)
 private val Skeleton = Color(0xFF222222)
-private val PosterTile = Color(0xFF1F1F1F)
-private val NowRed = Color(0xFFE50914)
-private val BadgeScrim = Color(0xCC000000)
-
-private const val TAG = "Nowflix"
-private const val THUMB_ASPECT = 16f / 9f
-private val ThumbWidth = 168.dp
-
-private sealed interface ListUiState {
-    data object Skeleton : ListUiState
-    data class Content(val videos: List<Video>, val total: Int) : ListUiState
-    data object Empty : ListUiState
-}
 
 @Composable
 fun PartDetailScreen(
     part: Part,
+    // Playlist description from playlists.list (cached). Blank -> the block is hidden.
+    description: String,
     onBack: () -> Unit,
-    // Wired for STEP 4's player: the row matching this id shows the playing indicator.
-    playingVideoId: String? = null,
+    // Start playback of [videos] at [startIndex] — "모두 재생" -> 0, a row tap -> that row.
+    onPlay: (videos: List<Video>, startIndex: Int) -> Unit,
 ) {
     // Back gesture returns to the home grid — only ever active on this screen.
     BackHandler(enabled = true) { onBack() }
@@ -98,7 +76,8 @@ fun PartDetailScreen(
     val ui by rememberPlaylistState(repo, part)
     // Computed once per screen so every row's "N년 전" is measured from the same instant.
     val now = remember { OffsetDateTime.now() }
-    val total = (ui as? ListUiState.Content)?.total
+    val content = ui as? ListUiState.Content
+    val videos = content?.videos.orEmpty()
 
     Row(
         modifier = Modifier
@@ -107,8 +86,10 @@ fun PartDetailScreen(
     ) {
         LeftPanel(
             part = part,
-            total = total,
-            onPlayAll = { Log.d(TAG, "play all: ${part.id} playlist=${part.playlistId}") },
+            description = description,
+            total = content?.total,
+            canPlay = videos.isNotEmpty(),
+            onPlayAll = { if (videos.isNotEmpty()) onPlay(videos, 0) },
             onBack = onBack,
             modifier = Modifier
                 .weight(0.28f)
@@ -126,12 +107,17 @@ fun PartDetailScreen(
                 is ListUiState.Content -> VideoList(
                     videos = state.videos,
                     now = now,
-                    playingVideoId = playingVideoId,
-                    onVideoClick = { v -> Log.d(TAG, "video tap: ${v.videoId} (${v.title})") },
+                    onVideoClick = { index -> onPlay(state.videos, index) },
                 )
             }
         }
     }
+}
+
+private sealed interface ListUiState {
+    data object Skeleton : ListUiState
+    data class Content(val videos: List<Video>, val total: Int) : ListUiState
+    data object Empty : ListUiState
 }
 
 @Composable
@@ -148,7 +134,9 @@ private fun rememberPlaylistState(repo: PlaylistRepository, part: Part): State<L
 @Composable
 private fun LeftPanel(
     part: Part,
+    description: String,
     total: Int?,
+    canPlay: Boolean,
     onPlayAll: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -181,10 +169,10 @@ private fun LeftPanel(
                 fontSize = 12.sp,
             )
         }
-        if (part.description.isNotBlank()) {
+        if (description.isNotBlank()) {
             Spacer(Modifier.height(12.dp))
             Text(
-                text = part.description,
+                text = description,
                 color = MetaGray,
                 fontSize = 12.sp,
                 maxLines = 2,
@@ -192,8 +180,10 @@ private fun LeftPanel(
             )
         }
         Spacer(Modifier.height(20.dp))
-        PlayAllButton(onClick = onPlayAll)
-        Spacer(Modifier.height(6.dp))
+        if (canPlay) {
+            PlayAllButton(onClick = onPlayAll)
+            Spacer(Modifier.height(6.dp))
+        }
         BackTextButton(onClick = onBack)
     }
 }
@@ -266,8 +256,7 @@ private fun PartPoster(part: Part) {
 private fun VideoList(
     videos: List<Video>,
     now: OffsetDateTime,
-    playingVideoId: String?,
-    onVideoClick: (Video) -> Unit,
+    onVideoClick: (Int) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -278,119 +267,9 @@ private fun VideoList(
                 index = index + 1,
                 video = video,
                 now = now,
-                playing = video.videoId == playingVideoId,
-                onClick = { onVideoClick(video) },
+                playing = false,
+                onClick = { onVideoClick(index) },
             )
-        }
-    }
-}
-
-@Composable
-private fun VideoRow(
-    index: Int,
-    video: Video,
-    now: OffsetDateTime,
-    playing: Boolean,
-    onClick: () -> Unit,
-) {
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val rowBg by animateColorAsState(
-        targetValue = if (playing || pressed) RowHighlight else Color.Transparent,
-        animationSpec = tween(durationMillis = 120),
-        label = "rowBg",
-    )
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(rowBg)
-            .clickable(interactionSource = interaction, indication = null) { onClick() },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // Left red bar marks the currently-playing row (STEP 4 sets playingVideoId).
-        Box(
-            modifier = Modifier
-                .width(3.dp)
-                .height(94.dp)
-                .background(if (playing) NowRed else Color.Transparent)
-        )
-        Text(
-            text = "$index",
-            color = MetaGray,
-            fontSize = 12.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.width(30.dp),
-        )
-        VideoThumbnail(video)
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 14.dp, end = 8.dp),
-        ) {
-            Text(
-                text = video.title,
-                color = Color.White,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            val meta = metaLine(video, now)
-            if (meta.isNotEmpty()) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = meta,
-                    color = MetaGray,
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-    }
-}
-
-/** "고쳐줘 NOW · 조회수 6.9만회 · 6년 전" — each segment dropped when its data is absent. */
-private fun metaLine(video: Video, now: OffsetDateTime): String = listOfNotNull(
-    video.channelTitle.takeIf { it.isNotBlank() },
-    if (video.viewCount > 0) ViewCount.format(video.viewCount) else null,
-    RelativeDate.format(video.publishedAt, now).takeIf { it.isNotBlank() },
-).joinToString(" · ")
-
-@Composable
-private fun VideoThumbnail(video: Video) {
-    Box(
-        modifier = Modifier
-            .width(ThumbWidth)
-            .aspectRatio(THUMB_ASPECT)
-            .clip(RoundedCornerShape(8.dp))
-            .background(PosterTile),
-    ) {
-        AsyncImage(
-            model = video.thumbnailUrl,
-            contentDescription = video.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
-        if (video.durationSeconds > 0) {
-            // Signature YouTube tell: black-scrim duration badge, bottom-right.
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(4.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(BadgeScrim)
-                    .padding(horizontal = 4.dp, vertical = 1.dp),
-            ) {
-                Text(
-                    text = VideoDuration.format(video.durationSeconds),
-                    color = Color.White,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                )
-            }
         }
     }
 }

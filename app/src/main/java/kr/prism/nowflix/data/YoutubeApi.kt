@@ -26,6 +26,14 @@ interface YoutubeApi {
         @Query("id") id: String,
         @Query("key") key: String,
     ): VideosResponse
+
+    @GET("playlists")
+    suspend fun playlists(
+        @Query("part") part: String = "snippet",
+        // All part playlist ids, comma-joined — fetched in a single call.
+        @Query("id") id: String,
+        @Query("key") key: String,
+    ): PlaylistsResponse
 }
 
 /**
@@ -35,7 +43,7 @@ interface YoutubeApi {
 class RetrofitYoutubeSource(
     private val api: YoutubeApi,
     private val apiKey: String,
-) : PlaylistItemsSource, VideoDetailsSource {
+) : PlaylistItemsSource, VideoDetailsSource, PlaylistMetaSource {
 
     override suspend fun fetchPage(playlistId: String, pageToken: String?): PlaylistItemsResponse =
         api.playlistItems(playlistId = playlistId, pageToken = pageToken, key = apiKey)
@@ -44,6 +52,12 @@ class RetrofitYoutubeSource(
         if (ids.isEmpty()) return emptyList()
         val response = api.videos(id = ids.joinToString(","), key = apiKey)
         return VideoDetailsMapper.toDetails(response.items)
+    }
+
+    override suspend fun fetchMeta(playlistIds: List<String>): List<PlaylistMeta> {
+        if (playlistIds.isEmpty()) return emptyList()
+        val response = api.playlists(id = playlistIds.joinToString(","), key = apiKey)
+        return PlaylistMetaMapper.toMeta(response.items)
     }
 }
 
