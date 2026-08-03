@@ -3,6 +3,7 @@ package kr.prism.nowflix
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.core.animateFloatAsState
@@ -33,7 +34,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import kr.prism.nowflix.ui.PartDetailScreen
 
 private val NowflixRed = Color(0xFFE50914)
 private val BodyBg = Color(0xFF0B0B0C)
@@ -74,7 +78,13 @@ class MainActivity : ComponentActivity() {
         hideSystemBars()
         setContent {
             MaterialTheme {
-                HomeScreen()
+                // Two-screen kiosk: home grid <-> a part's video list. State-hoisted
+                // here rather than a nav library — there are exactly two destinations.
+                var selected by remember { mutableStateOf<Part?>(null) }
+                when (val part = selected) {
+                    null -> HomeScreen(onPartClick = { selected = it })
+                    else -> PartDetailScreen(part = part, onBack = { selected = null })
+                }
             }
         }
     }
@@ -96,9 +106,12 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun HomeScreen() {
+private fun HomeScreen(onPartClick: (Part) -> Unit) {
     val context = LocalContext.current
     val parts = remember { PartsRepository.load(context) }
+
+    // Kiosk main screen swallows the back gesture — it must never exit the app.
+    BackHandler(enabled = true) { /* no-op */ }
 
     BoxWithConstraints(
         modifier = Modifier
@@ -109,7 +122,7 @@ private fun HomeScreen() {
         Column(modifier = Modifier.fillMaxSize()) {
             TopBand(modifier = Modifier.height(bandHeight))
             TopContentHeader(count = parts.size)
-            PartsRow(parts = parts)
+            PartsRow(parts = parts, onPartClick = onPartClick)
         }
     }
 }
@@ -124,29 +137,22 @@ private fun TopBand(modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        // TODO: swap for the extracted NOWFLIX logo PNG once the asset lands.
-        Text(
-            text = "NOWFLIX",
-            color = Color.White,
-            fontSize = 40.sp,
-            fontWeight = FontWeight.Black,
-            letterSpacing = 1.sp,
+        // Transparent-background wordmark, drawn over the red band.
+        Image(
+            painter = painterResource(R.drawable.nowflix_logo),
+            contentDescription = "NOWFLIX",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxHeight(0.5f),
         )
-        QrPlaceholder(modifier = Modifier.fillMaxHeight(0.62f))
-    }
-}
-
-@Composable
-private fun QrPlaceholder(modifier: Modifier = Modifier) {
-    // TODO: swap for the extracted QR PNG once the asset lands.
-    Box(
-        modifier = modifier
-            .aspectRatio(1f)
-            .clip(RoundedCornerShape(4.dp))
-            .background(Color.White),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text = "QR", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Image(
+            painter = painterResource(R.drawable.nowflix_qr),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxHeight(0.62f)
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(4.dp)),
+        )
     }
 }
 
@@ -182,7 +188,7 @@ private fun TopContentHeader(count: Int) {
 }
 
 @Composable
-private fun PartsRow(parts: List<Part>) {
+private fun PartsRow(parts: List<Part>, onPartClick: (Part) -> Unit) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val cardWidthDp = CardMetrics.cardWidthDp(
             rowWidthDp = maxWidth.value,
@@ -196,14 +202,14 @@ private fun PartsRow(parts: List<Part>) {
             modifier = Modifier.fillMaxWidth(),
         ) {
             items(parts, key = { it.id }) { part ->
-                PartCard(part = part, width = cardWidthDp)
+                PartCard(part = part, width = cardWidthDp, onClick = { onPartClick(part) })
             }
         }
     }
 }
 
 @Composable
-private fun PartCard(part: Part, width: Dp) {
+private fun PartCard(part: Part, width: Dp, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -220,7 +226,10 @@ private fun PartCard(part: Part, width: Dp) {
             .clickable(
                 interactionSource = interaction,
                 indication = null,
-            ) { Log.d(TAG, "card tap: ${part.id} playlist=${part.playlistId}") }
+            ) {
+                Log.d(TAG, "card tap: ${part.id} playlist=${part.playlistId}")
+                onClick()
+            }
     ) {
         Box(
             modifier = Modifier
