@@ -16,3 +16,9 @@ local.properties
 .env
 .env.*
 .env.local
+
+# CI screenshot viewer — images are fetched from the ci-screenshots branch, never committed to main
+/ci-viewer/screenshots/
+/ci-viewer/meta.txt
+/ci-viewer/kiosk-summary.txt
+/ci-viewer/.vercel

@@ -184,9 +184,11 @@ jobs:
             COMP=kr.prism.nowflix/.kiosk.KioskAdminReceiver
             PKG=kr.prism.nowflix
             PASS=0; FAIL=0
+            SUMMARY="$GITHUB_WORKSPACE/kiosk-summary.txt"; : > "$SUMMARY"
             check() { # check "<label>" <0-if-pass>
-              if [ "$2" -eq 0 ]; then echo "PASS  $1"; PASS=$((PASS+1));
-              else echo "FAIL  $1"; FAIL=$((FAIL+1)); fi
+              if [ "$2" -eq 0 ]; then L="PASS  $1"; PASS=$((PASS+1));
+              else L="FAIL  $1"; FAIL=$((FAIL+1)); fi
+              echo "$L"; echo "$L" >> "$SUMMARY"
             }
             focus() { adb shell dumpsys window 2>/dev/null | grep -m1 -i mCurrentFocus; }
 
@@ -251,7 +253,7 @@ jobs:
             check "(6) lock task released, device usable again" $?
 
             echo "========================================================"
-            echo "RESULT: $PASS passed, $FAIL failed"
+            echo "RESULT: $PASS passed, $FAIL failed" | tee -a "$SUMMARY"
 
             adb logcat -d > kiosk-logcat.txt || true
             [ "$FAIL" -eq 0 ]
@@ -263,3 +265,76 @@ jobs:
           name: kiosk-logcat
           path: kiosk-logcat.txt
           if-no-files-found: ignore
+
+      - name: Upload kiosk summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kiosk-summary
+          path: kiosk-summary.txt
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # Job 4 — publish captured screens to the ci-screenshots branch.
+  #
+  # This VM has no GitHub token, so it cannot download run artifacts. Instead we
+  # push the PNGs to a dedicated branch that anyone (incl. scripts/refresh-
+  # screenshots.sh) can `git fetch`. Single writer → no race; orphan branch,
+  # force-pushed each run → screenshots only, no history buildup, main stays image-free.
+  # ---------------------------------------------------------------------------
+  publish-screenshots:
+    name: Publish screenshots to ci-screenshots branch
+    runs-on: ubuntu-latest
+    needs: [instrumented-and-screenshots, kiosk-lock]
+    if: always()
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download screenshots artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: screenshots
+          path: dl/screenshots
+        continue-on-error: true
+
+      - name: Download kiosk summary artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: kiosk-summary
+          path: dl/kiosk
+        continue-on-error: true
+
+      - name: Commit + push screenshots to ci-screenshots branch
+        run: |
+          set -e
+          if [ -z "$(find dl -name '*.png' 2>/dev/null)" ]; then
+            echo "No screenshots were captured — nothing to publish."; exit 0
+          fi
+
+          SRC_SHA="${{ github.sha }}"
+          STAMP="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Fresh orphan branch: nothing from main is committed, only the assets we add below.
+          git checkout --orphan ci-screenshots
+          git rm -rf --cached . >/dev/null 2>&1 || true
+
+          mkdir -p screenshots
+          # The screenshots artifact carries the numbered screens plus the contact sheet.
+          find dl -name '*.png' | while read -r f; do
+            b="$(basename "$f")"
+            if [ "$b" = "contact-sheet.png" ]; then cp "$f" contact-sheet.png; else cp "$f" "screenshots/$b"; fi
+          done
+          [ -f dl/kiosk/kiosk-summary.txt ] && cp dl/kiosk/kiosk-summary.txt kiosk-summary.txt || true
+          printf 'source_commit=%s\ncaptured_at=%s\n' "$SRC_SHA" "$STAMP" > meta.txt
+
+          git add -f screenshots/*.png meta.txt
+          [ -f contact-sheet.png ]  && git add -f contact-sheet.png  || true
+          [ -f kiosk-summary.txt ]  && git add -f kiosk-summary.txt  || true
+
+          git commit -m "CI screenshots for ${SRC_SHA} @ ${STAMP}"
+          git push -f origin ci-screenshots
+          echo "Published $(ls -1 screenshots/*.png | wc -l) screenshot(s) to ci-screenshots."
