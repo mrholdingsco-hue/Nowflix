@@ -3,6 +3,7 @@ package kr.prism.nowflix.data
 import kotlinx.coroutines.test.runTest
 import kr.prism.nowflix.Part
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -49,6 +50,7 @@ class KioskConfigRepositoryTest {
         assertEquals(listOf("무릎 원격", "척척 원격"), config.parts.map { it.title }) // sorted by position
         assertEquals(90, config.settings.idleReturnSeconds)
         assertEquals(1, cache.writes) // persisted for the next cold start
+        assertTrue(config.fromRemote) // live fetch -> admin screen can stamp the receipt time
     }
 
     // Stage 2 — remote fails but a cache exists: serve the cache, don't overwrite it.
@@ -66,6 +68,7 @@ class KioskConfigRepositoryTest {
         assertEquals(listOf("무릎 원격", "척척 원격"), config.parts.map { it.title })
         assertEquals(77, config.settings.idleReturnSeconds)
         assertEquals(0, cache.writes) // a failed fetch must not touch the cache
+        assertFalse(config.fromRemote) // served from cache, not a live fetch
     }
 
     // Stage 3 — remote fails and no cache: bundled assets + default settings.
@@ -83,6 +86,7 @@ class KioskConfigRepositoryTest {
         assertEquals(bundled, config.parts)
         assertEquals(120, config.settings.idleReturnSeconds) // default
         assertEquals(0, cache.writes)
+        assertFalse(config.fromRemote) // bundled assets, not a live fetch
     }
 
     // Empty remote is treated as failure by the source, so it never blanks the screen.

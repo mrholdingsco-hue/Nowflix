@@ -42,6 +42,9 @@ data class KioskSettings(
 data class KioskConfig(
     val parts: List<Part>,
     val settings: KioskSettings,
+    // True only when this value came from a live Supabase fetch (not cache/assets). The admin
+    // screen uses it to stamp "마지막 원격 설정 수신 시각".
+    val fromRemote: Boolean = false,
 )
 
 /**

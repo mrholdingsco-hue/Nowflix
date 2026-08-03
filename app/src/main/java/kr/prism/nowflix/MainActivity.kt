@@ -11,6 +11,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,6 +31,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
@@ -67,6 +71,7 @@ import coil.request.CachePolicy
 import coil.request.ImageRequest
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kr.prism.nowflix.data.FileConfigCacheStore
 import kr.prism.nowflix.data.FileMetaCacheStore
 import kr.prism.nowflix.data.KioskConfig
@@ -77,8 +82,16 @@ import kr.prism.nowflix.data.RetrofitSupabaseSource
 import kr.prism.nowflix.data.RetrofitYoutubeSource
 import kr.prism.nowflix.data.SupabaseService
 import kr.prism.nowflix.data.YoutubeService
+import kr.prism.nowflix.kiosk.AndroidKioskController
+import kr.prism.nowflix.kiosk.KioskController
+import kr.prism.nowflix.kiosk.KioskLockMode
+import kr.prism.nowflix.kiosk.LockTaskReentry
+import kr.prism.nowflix.kiosk.PinGate
+import kr.prism.nowflix.kiosk.lockModeFor
 import kr.prism.nowflix.player.IdleReturnMachine
+import kr.prism.nowflix.ui.AdminScreen
 import kr.prism.nowflix.ui.PartDetailScreen
+import kr.prism.nowflix.ui.PinPad
 import kr.prism.nowflix.ui.PlayerScreen
 
 private val NowflixRed = Color(0xFFE50914)
@@ -98,11 +111,26 @@ private const val THUMB_ASPECT = 16f / 9f
 private val CardCorner = 4.dp
 
 class MainActivity : ComponentActivity() {
+
+    // Kiosk lock surface + mode. Built once in onCreate; the mode is fixed by device owner status.
+    private lateinit var kiosk: KioskController
+    private lateinit var reentry: LockTaskReentry
+    private var lockMode: KioskLockMode = KioskLockMode.FALLBACK
+    private var lockEntered = false
+    // Read from onResume (outside composition) to decide FALLBACK re-entry; set by the overlays
+    // so we never fight the operator while they're unlocking.
+    private var escapeOverlayOpen = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         hideSystemBars()
         keepScreenOnAndBright()
+
+        kiosk = AndroidKioskController(this)
+        lockMode = lockModeFor(kiosk.isDeviceOwner())
+        reentry = LockTaskReentry(clock = { SystemClock.uptimeMillis() })
+
         setContent {
             MaterialTheme {
                 // Three-screen kiosk: home grid -> a part's video list -> the player. The whole
@@ -111,6 +139,16 @@ class MainActivity : ComponentActivity() {
                 val descriptions = rememberDescriptions()
                 // Supabase-backed config (parts + settings) with silent cache/asset fallback.
                 val config = rememberKioskConfig()
+
+                // Escape-path state, orthogonal to browse/play nav: hidden gesture -> PIN -> admin.
+                var showPin by remember { mutableStateOf(false) }
+                var showAdmin by remember { mutableStateOf(false) }
+                val pinGate = remember { PinGate(clock = { SystemClock.uptimeMillis() }) }
+                LaunchedEffect(showPin, showAdmin) { escapeOverlayOpen = showPin || showAdmin }
+
+                // Last successful remote-config receipt, stamped when a live fetch lands.
+                var lastRemoteAt by remember { mutableStateOf<Long?>(null) }
+                LaunchedEffect(config) { if (config.fromRemote) lastRemoteAt = System.currentTimeMillis() }
 
                 // Single idle-return authority for the whole kiosk. Monotonic clock so wall-clock
                 // changes never skew it; tests inject a fake clock instead.
@@ -143,6 +181,10 @@ class MainActivity : ComponentActivity() {
                         if (machine.isIdleExpired()) goHome()
                     }
                 }
+
+                // Safety belt: only enter the lock AFTER this composition (with the escape
+                // gesture + PIN/admin overlays below) is live. Never lock on start unconditionally.
+                LaunchedEffect(Unit) { enterKioskLock() }
 
                 // Whole-screen touch observer. Runs on the Initial pass so it sees every touch
                 // before any child (including the player's event-consuming shield) without
@@ -186,6 +228,58 @@ class MainActivity : ComponentActivity() {
                             onPartClick = { nav = nav.openPart(it) },
                         )
                     }
+
+                    // Escape path #1: hidden top-right hotspot, 3s long-press -> PIN. Topmost and
+                    // on the default (Main) pass, so it fires on every screen including the
+                    // player's event-consuming shield below it.
+                    if (!showPin && !showAdmin) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .size(96.dp)
+                                .pointerInput(Unit) {
+                                    awaitEachGesture {
+                                        awaitFirstDown(requireUnconsumed = false)
+                                        val releasedEarly = withTimeoutOrNull(3000L) {
+                                            waitForUpOrCancellation()
+                                            true
+                                        }
+                                        if (releasedEarly == null) showPin = true
+                                    }
+                                }
+                        )
+                    }
+
+                    if (showPin) {
+                        PinPad(
+                            onSubmit = { pin ->
+                                pinGate.submit(
+                                    pin,
+                                    PinGate.effectiveHash(config.settings.adminPinHash),
+                                )
+                            },
+                            lockedSecondsLeft = { pinGate.lockedSecondsLeft() },
+                            onAccepted = { showPin = false; showAdmin = true },
+                            onDismiss = { showPin = false },
+                        )
+                    }
+
+                    if (showAdmin) {
+                        AdminScreen(
+                            lockMode = lockMode,
+                            appVersion = BuildConfig.VERSION_NAME,
+                            lastRemoteAtMillis = lastRemoteAt,
+                            onReleaseFully = {
+                                kiosk.releaseFully()
+                                finishAndRemoveTask()
+                            },
+                            onExitApp = {
+                                kiosk.stopLockTask()
+                                finishAndRemoveTask()
+                            },
+                            onClose = { showAdmin = false },
+                        )
+                    }
                 }
             }
         }
@@ -195,6 +289,36 @@ class MainActivity : ComponentActivity() {
         super.onWindowFocusChanged(hasFocus)
         // Kiosk: keep system bars hidden even after transient system UI shows them.
         if (hasFocus) hideSystemBars()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // FALLBACK mode only: screen pinning is user-escapable, so re-assert it if we're no longer
+        // pinned — unless an escape overlay is open (don't fight the operator). The reentry guard
+        // rate-limits this so onResume -> startLockTask -> onResume can't spin forever.
+        if (lockEntered && lockMode == KioskLockMode.FALLBACK &&
+            reentry.shouldReenter(kiosk.isLockTaskActive(), escapeOverlayOpen)
+        ) {
+            kiosk.startLockTask()
+        }
+    }
+
+    /**
+     * Enter the kiosk lock, branching on device owner status (one code path):
+     *  - FULL_LOCK: silent lock task + status bar & keyguard disabled.
+     *  - FALLBACK:  screen pinning (system confirms) + home-launcher re-entry via [onResume].
+     * Called once, only after the escape paths are live (see the LaunchedEffect in onCreate).
+     */
+    private fun enterKioskLock() {
+        if (lockEntered) return
+        lockEntered = true
+        Log.i(TAG, "enterKioskLock: mode=$lockMode deviceOwner=${kiosk.isDeviceOwner()}")
+        kiosk.registerLockTaskPackages()
+        kiosk.startLockTask()
+        if (lockMode == KioskLockMode.FULL_LOCK) {
+            kiosk.setStatusBarDisabled(true)
+            kiosk.setKeyguardDisabled(true)
+        }
     }
 
     /**

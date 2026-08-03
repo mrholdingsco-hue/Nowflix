@@ -1,5 +1,15 @@
 # NOWFLIX Kiosk — Progress
 
+## STEP 7 (2026-08-03) — 키오스크 잠금 (하드 락다운) — DONE (실기기 검증 대기)
+- 원칙: 잠금보다 **탈출 경로 3개 먼저**. `enterKioskLock()`은 escape 오버레이가 컴포즈에 올라온 뒤 `LaunchedEffect(Unit)`에서 1회 호출(즉시 무조건 잠금 X, 안전벨트).
+- 두 모드 자동 분기(하나의 코드): `lockModeFor(isDeviceOwner)` → `KioskLockMode`. **FULL_LOCK**(device owner): `setLockTaskPackages`+`addPersistentPreferredActivity(HOME)` → `startLockTask`(무프롬프트) → `setStatusBarDisabled`/`setKeyguardDisabled`. **FALLBACK**(비owner): `startLockTask`(시스템 확인) + manifest HOME 필터, `onResume`에서 `LockTaskReentry`로 재진입(간격 2s 가드 → 무한루프 없음). DevicePolicyManager는 `KioskController` 인터페이스로 감싸 fake 주입(`AndroidKioskController`=표준 AOSP API만, Knox 미사용).
+- 탈출①PIN: 우상단 96dp 히트박스 **3초 롱프레스**(루트 Box 최상단 자식 → 플레이어 shield 포함 어느 화면에서든) → `PinPad`. `PinGate`(순수, clock 주입): SHA-256 대조, 5회 실패→30초 잠금(영구 X, 자동해제). 유효해시 = `settings.adminPinHash` → 캐시(리포 3단 폴백) → **내장 기본 `PinGate.DEFAULT_ADMIN_PIN_HASH = Sha256.hex("000000")`** (파일 `kiosk/PinGate.kt` companion). 통과 시 관리자 화면.
+- 탈출②관리자 완전 해제: `AdminScreen` "키오스크 모드 완전 해제" → 확인 → `releaseFully()`(stopLockTask→상태바/키가드 복구→홈 preference clear→`clearDeviceOwnerApp`, 전/후 Log) → 종료. 공장초기화 없이 평범 복귀. 잠금모드/앱버전/마지막 원격 수신시각 표시(`KioskConfig.fromRemote` 추가, 원격 성공 시 stamp). "앱 종료"·STEP8 placeholder(PIN변경/파트관리) 자리 확보.
+- 탈출③ADB: 사용자 결정으로 `android:testOnly="true"` → 앱이 죽어도 `dpm remove-active-admin`으로 공장초기화 없이 해제 가능. `docs/kiosk-recovery.md`(검증된 명령만, 근거 `references/adb-device-owner.md`). 설치는 `adb install -t`.
+- Manifest: HOME+DEFAULT 인텐트필터, `launchMode=singleTask`, `KioskAdminReceiver`(BIND_DEVICE_ADMIN)+`res/xml/device_admin.xml`, `BootReceiver`(BOOT_COMPLETED, FLAG_ACTIVITY_NEW_TASK)+권한.
+- 테스트 **91 pass / 0 fail**(+18: PinGate 8·Sha256 3·KioskLockMode 2·LockTaskReentry 5·config fromRemote). 잡은 버그: `LockTaskReentry` 초기값 `Long.MIN_VALUE` 감산 오버플로 → nullable로 수정. `assembleDebug` OK, 병합 매니페스트에 testOnly/HOME/리시버 확인. 커밋+push.
+- **실기기 필수 검증(VM 불가)**: ①`dpm set-device-owner`로 owner 지정 후 완전잠금 진입 ②상태바·알림그림자·키가드 차단 ③우상단 3초 제스처+PIN(오답 5회 30초) ④완전 해제 후 평범 복귀 ⑤부팅 자동 실행 ⑥비owner 시 FALLBACK 재진입·홈 등록.
+
 ## STEP 6 (2026-08-03) — idle-return timer + screen keep-on — DONE
 - Timer state machine (`player/IdleReturnMachine.kt`, pure, no Android): injected `clock: () -> Long` (millis) so tests fast-forward time by hand. Two regimes switched by `setPlaying`: **browsing** (home/list) → `isIdleExpired()` true once `clock()-lastTouch >= idleReturnSeconds*1000`; **playing** → time is ignored, instead `onAutoAdvance()` returns true on the `AUTO_ADVANCE_LIMIT`-th (=2, a const) touch-free auto-advance. `onTouch()` / `onManualNext()` both reset the auto run + idle clock; `onReturnHome()` resets to a clean browsing slate. `idleReturnSeconds` is a live `var` (remote settings change applies without rebuild).
 - Nav/reset hoisted to one pure value (`KioskNavState.kt`, moved `Playback` here): `openPart/play/closePlayer/closePart` transitions + `returnToHome()` = pristine home (playback null → queue emptied + stopped, selectedPart null, homeScrollIndex 0). Per-screen scroll/controls reset for free since detail/player leave composition.

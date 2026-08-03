@@ -2,24 +2,64 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!--
+      testOnly=true is a deliberate STEP 7 choice: this app is sideloaded via `adb install -t`
+      and made device owner via adb. It guarantees that if the app ever breaks, device ownership
+      can still be removed with `adb shell dpm remove-active-admin ...` — no factory reset.
+    -->
     <application
         android:allowBackup="true"
         android:label="NOWFLIX"
         android:supportsRtl="false"
+        android:testOnly="true"
         android:theme="@style/Theme.Nowflix">
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:theme="@style/Theme.Nowflix">
+            <!-- Standard launcher entry. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Home-launcher entry: selectable as the default HOME app so a home press / reboot
+                 returns to the kiosk (used by the FALLBACK mode; set persistently by the device
+                 owner in FULL_LOCK mode). -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
+
+        <!-- Device admin component: required to grant device owner via
+             `adb shell dpm set-device-owner kr.prism.nowflix/.kiosk.KioskAdminReceiver`. -->
+        <receiver
+            android:name=".kiosk.KioskAdminReceiver"
+            android:permission="android.permission.BIND_DEVICE_ADMIN"
+            android:exported="true">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Relaunch the kiosk on boot. -->
+        <receiver
+            android:name=".kiosk.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

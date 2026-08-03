@@ -29,7 +29,7 @@ class KioskConfigRepository(
         }
         if (remote != null) {
             cache.write(remote)
-            return KioskConfigMapper.merge(remote, bundledParts)
+            return KioskConfigMapper.merge(remote, bundledParts).copy(fromRemote = true)
         }
 
         // Stage 2 — last successful remote config.
