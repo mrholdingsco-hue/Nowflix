@@ -194,8 +194,11 @@ class ScreenshotTest {
 
     private fun capture(name: String) {
         val bitmap = rule.onRoot().captureToImage().asAndroidBitmap()
+        // Internal filesDir (/data/data/<pkg>/files) is always non-null and writable. External
+        // storage (getExternalFilesDir) can be null before storage is mounted on a fresh CI
+        // emulator, which silently sent earlier captures nowhere. CI pulls this dir via `adb root`.
         val dir = File(
-            InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir(null),
+            InstrumentationRegistry.getInstrumentation().targetContext.filesDir,
             "screenshots",
         ).apply { mkdirs() }
         File(dir, "$name.png").outputStream().use { out ->

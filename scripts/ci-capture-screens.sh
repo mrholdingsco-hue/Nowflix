@@ -21,12 +21,21 @@ adb shell settings put system user_rotation 1
   --stacktrace 2>&1 | tee screenshot-capture.log
 SHOT_EXIT=${PIPESTATUS[0]}
 
-# Record exactly what the app wrote, then pull it (two known device paths).
-adb shell ls -la "$APP_EXTERNAL_DIR/screenshots" > device-screenshots-ls.txt 2>&1 || true
+# The screenshots are written to the app's INTERNAL files dir (see ScreenshotTest.capture()).
+# Pull it as root; fall back to run-as (debuggable app); then locate them anywhere as a last resort.
+APP_FILES=/data/data/kr.prism.nowflix/files
+adb shell ls -la "$APP_FILES/screenshots" > device-screenshots-ls.txt 2>&1 || true
 echo "---- device screenshots dir ----"; cat device-screenshots-ls.txt
-adb pull "$APP_EXTERNAL_DIR/screenshots" ./ 2>/dev/null || true
+adb pull "$APP_FILES/screenshots" ./ 2>/dev/null || true
 if ! ls screenshots/*.png >/dev/null 2>&1; then
-  adb pull "/data/media/0/Android/data/kr.prism.nowflix/files/screenshots" ./ 2>/dev/null || true
+  echo "root pull empty; trying run-as tar"
+  mkdir -p screenshots
+  adb exec-out run-as kr.prism.nowflix tar c -C files screenshots 2>/dev/null | tar x 2>/dev/null || true
+fi
+if ! ls screenshots/*.png >/dev/null 2>&1; then
+  echo "still empty; searching the device for the PNGs"
+  adb shell 'find /data /sdcard /storage -type f -name "0*_*.png" 2>/dev/null; find /data /sdcard /storage -type f -name "07_admin.png" 2>/dev/null' > device-find.txt 2>&1 || true
+  cat device-find.txt
 fi
 ls -al screenshots || echo "no screenshots dir"
 adb logcat -d > instrumented-logcat.txt 2>/dev/null || true

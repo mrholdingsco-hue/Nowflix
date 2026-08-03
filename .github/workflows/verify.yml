@@ -124,6 +124,7 @@ jobs:
             connected.log
             screenshot-capture.log
             device-screenshots-ls.txt
+            device-find.txt
             instrumented-logcat.txt
             app/build/outputs/androidTest-results/connected/
           if-no-files-found: warn
