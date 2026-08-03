@@ -1,5 +1,11 @@
 # NOWFLIX Kiosk — Progress
 
+## STEP 9-B (2026-08-03) — CI 스크린샷을 폰에서 보기 — DONE ✅
+- **뷰어 라이브**: https://nowflix-ci-view.vercel.app (Vercel `nowflix-ci-view`, icn1, 관리자 웹과 분리된 임시 프로젝트). 7장 index 200 + 이미지 전부 200, 배포 보호 없음(공개). `ci-viewer/index.html`(무프레임워크, 한글 화면명·탭 확대 라이트박스·상단 커밋/촬영시각·키오스크 로그 섹션).
+- **파이프라인**: `verify.yml`에 `publish-screenshots` 잡(`contents:write`)이 매 실행 **orphan `ci-screenshots` 브랜치**를 force-push(스크린샷만, 히스토리 미적재, main엔 이미지 없음) + status/diag/JUnit XML도 브랜치로 노출(이 VM엔 토큰 없어 로그 조회 불가 → 브랜치가 유일 관측창). `scripts/refresh-screenshots.sh` 한 줄로 재-fetch+재배포.
+- **7장 확보까지 고친 근본원인 4개**: (1) API34 `adb pull`이 scoped-storage로 `Android/data` 차단 → `adb root`. (2) API28+ cleartext 차단으로 in-proc MockWebServer 불통(ConfigNetworkTest 8→6, videoList 타임아웃) → debug 전용 loopback network-security-config. (3) 에뮬레이터 부팅 flaky + `ram-size:4096M`가 7GB 러너 OOM → API30·기본 RAM·2회 시도. (4) **핵심**: `gradle connectedAndroidTest`가 실행 직후 앱을 uninstall해 `/data/data/<pkg>` 삭제 → PNG는 쓰였지만 pull 전에 소멸. `am instrument`(수동 설치, uninstall 안 함)로 캡처 후 pull. 스크린샷은 앱 내부 `filesDir`에 기록.
+- **결과**: 7/7 PNG(1800×2400 RGBA, 56KB~343KB, 화면별 상이 = 실제 렌더) 브랜치에 존재. ScreenshotTest 7개 통과. cleartext 수정으로 ConfigNetworkTest 원격설정 테스트도 통과. 미해결(비-핵심): kiosk-lock 잡 부팅 실패로 kiosk-summary 빈 값, KioskFlowTest 터치주입 실패 5건(스크린샷 무관).
+
 ## STEP 9 (2026-08-03) — 실기기·에뮬레이터 검증 (CI 스크린샷 + 계측 + 키오스크 잠금) — DONE (CI 실행은 토큰 필요)
 - **전제**: `.env.local`에 GitHub 토큰 없음(Vercel/Supabase만) + `gh` CLI 없음 → 규칙대로 워크플로/테스트를 만들어 push하고 **CI 결과 확인은 사용자가 필요**. 원격(origin=`Nowflix.git`) 도달 확인됨. VM엔 KVM 없어 에뮬레이터는 GitHub Actions에서만 구동.
 - **테스트 시드값 고정**: `app/src/androidTest/assets/fixtures/` 6종(YouTube `playlist_items`/`videos`/`playlists` 실제 응답 구조 그대로 영상 8개로 축소 + Supabase `parts_6`/`parts_8`/`settings`). 실제 API 미호출 — 전부 MockWebServer로 로컬 서빙, 키 불필요·매 실행 동일.
