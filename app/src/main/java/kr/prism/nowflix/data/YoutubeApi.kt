@@ -18,15 +18,33 @@ interface YoutubeApi {
         @Query("pageToken") pageToken: String? = null,
         @Query("key") key: String,
     ): PlaylistItemsResponse
+
+    @GET("videos")
+    suspend fun videos(
+        @Query("part") part: String = "contentDetails,statistics",
+        // Up to 50 comma-joined video ids per call.
+        @Query("id") id: String,
+        @Query("key") key: String,
+    ): VideosResponse
 }
 
-/** Retrofit-backed [PlaylistItemsSource]. Holds the API key so callers never pass it. */
-class RetrofitPlaylistSource(
+/**
+ * Retrofit-backed YouTube source for both playlist pages and per-video details.
+ * Holds the API key so callers never pass it.
+ */
+class RetrofitYoutubeSource(
     private val api: YoutubeApi,
     private val apiKey: String,
-) : PlaylistItemsSource {
+) : PlaylistItemsSource, VideoDetailsSource {
+
     override suspend fun fetchPage(playlistId: String, pageToken: String?): PlaylistItemsResponse =
         api.playlistItems(playlistId = playlistId, pageToken = pageToken, key = apiKey)
+
+    override suspend fun fetchDetails(ids: List<String>): List<VideoDetail> {
+        if (ids.isEmpty()) return emptyList()
+        val response = api.videos(id = ids.joinToString(","), key = apiKey)
+        return VideoDetailsMapper.toDetails(response.items)
+    }
 }
 
 /** Lazily-built singleton Retrofit stack for the YouTube Data API. */

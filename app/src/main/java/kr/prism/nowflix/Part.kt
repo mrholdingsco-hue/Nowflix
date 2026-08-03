@@ -14,6 +14,8 @@ data class Part(
     val title: String,
     val thumbnail: String,
     val playlistId: String,
+    // Optional playlist blurb shown (2 lines, ellipsized) in the detail left panel.
+    val description: String = "",
 )
 
 object PartsRepository {

@@ -27,15 +27,18 @@ class PlaylistPaginatorTest {
 
     @Test
     fun concatenatesThreePagesFollowingNextPageTokens() = runTest {
-        // 85-video playlist arriving as 50 + 50 + 20 across three pages.
-        val page1 = PlaylistItemsResponse(items = (1..50).map { item("a$it") }, nextPageToken = "P2")
-        val page2 = PlaylistItemsResponse(items = (1..50).map { item("b$it") }, nextPageToken = "P3")
-        val page3 = PlaylistItemsResponse(items = (1..20).map { item("c$it") }, nextPageToken = null)
+        // 85-video playlist arriving as 50 + 50 + 20 across three pages. pageInfo.totalResults
+        // (85) is reported on every page; the first page's value is the playlist total.
+        val info = PageInfo(totalResults = 85)
+        val page1 = PlaylistItemsResponse((1..50).map { item("a$it") }, "P2", info)
+        val page2 = PlaylistItemsResponse((1..50).map { item("b$it") }, "P3", info)
+        val page3 = PlaylistItemsResponse((1..20).map { item("c$it") }, null, info)
         val source = PagedSource(listOf(page1, page2, page3))
 
         val all = PlaylistPaginator.fetchAll(source, "PL")
 
-        assertEquals(120, all.size)
+        assertEquals(120, all.items.size)
+        assertEquals(85, all.totalCount) // from pageInfo, independent of fetched size
         assertEquals(3, source.calls)
         assertEquals(listOf<String?>(null, "P2", "P3"), source.tokensSeen)
     }
@@ -48,7 +51,9 @@ class PlaylistPaginatorTest {
 
         val all = PlaylistPaginator.fetchAll(source, "PL")
 
-        assertEquals(35, all.size)
+        assertEquals(35, all.items.size)
+        // No pageInfo supplied -> total falls back to the fetched size.
+        assertEquals(35, all.totalCount)
         assertEquals(1, source.calls)
     }
 
@@ -60,7 +65,7 @@ class PlaylistPaginatorTest {
 
         val all = PlaylistPaginator.fetchAll(source, "PL")
 
-        assertEquals(1, all.size)
+        assertEquals(1, all.items.size)
         assertEquals(1, source.calls)
     }
 }

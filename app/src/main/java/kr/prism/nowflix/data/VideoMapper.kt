@@ -27,7 +27,10 @@ object VideoMapper {
             ?: item.snippet?.publishedAt
             ?: ""
 
-        return Video(videoId, title, thumbnailUrl, publishedAt)
+        val channelTitle = item.snippet?.videoOwnerChannelTitle?.trim().orEmpty()
+
+        // durationSeconds/viewCount are filled later by the videos.list enrichment pass.
+        return Video(videoId, title, thumbnailUrl, publishedAt, channelTitle)
     }
 
     /** First non-blank URL at medium quality or better (medium is 320x180). */
@@ -36,5 +39,18 @@ object VideoMapper {
         return listOfNotNull(t.medium, t.high, t.standard, t.maxres)
             .map { it.url }
             .firstOrNull { it.isNotBlank() }
+    }
+}
+
+/** videos.list DTO -> [VideoDetail]. Pure, so parsing is covered by JVM unit tests. */
+object VideoDetailsMapper {
+
+    fun toDetails(items: List<VideoResource>): List<VideoDetail> = items.mapNotNull { item ->
+        val id = item.id.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+        VideoDetail(
+            videoId = id,
+            durationSeconds = VideoDuration.parseSeconds(item.contentDetails?.duration),
+            viewCount = item.statistics?.viewCount?.toLongOrNull() ?: 0L,
+        )
     }
 }

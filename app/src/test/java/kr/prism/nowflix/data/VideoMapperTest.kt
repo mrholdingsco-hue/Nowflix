@@ -12,6 +12,7 @@ class VideoMapperTest {
             publishedAt = "2022-02-02T00:00:00Z",
             resourceId = ResourceId(id),
             thumbnails = Thumbnails(medium = Thumb("https://t/$id/medium")),
+            videoOwnerChannelTitle = "고쳐줘 NOW",
         ),
         contentDetails = ContentDetails(videoId = id, videoPublishedAt = "2023-03-03T00:00:00Z"),
     )
@@ -46,6 +47,7 @@ class VideoMapperTest {
         assertEquals("Good z", v.title)
         assertEquals("https://t/z/medium", v.thumbnailUrl)
         assertEquals("2023-03-03T00:00:00Z", v.publishedAt) // contentDetails.videoPublishedAt wins
+        assertEquals("고쳐줘 NOW", v.channelTitle)
     }
 
     @Test
