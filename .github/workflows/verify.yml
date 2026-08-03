@@ -381,6 +381,8 @@ jobs:
           {
             echo "############ device screenshots dir (adb ls) ############"
             cat dl/diag/device-screenshots-ls.txt 2>/dev/null || echo "(absent)"
+            echo; echo "############ device-wide PNG search ############"
+            cat dl/diag/device-find.txt 2>/dev/null || echo "(not run — screenshots were found)"
             echo; echo "############ screenshot-capture.log (FULL) ############"
             cat dl/diag/screenshot-capture.log 2>/dev/null || echo "(absent — capture run never produced a log)"
             echo; echo "############ androidTest JUnit failures/errors ############"
