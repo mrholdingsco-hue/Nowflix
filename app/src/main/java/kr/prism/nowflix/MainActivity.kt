@@ -1,7 +1,9 @@
 package kr.prism.nowflix
 
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Log
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -27,8 +29,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -38,12 +42,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -59,6 +66,7 @@ import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kr.prism.nowflix.data.FileConfigCacheStore
 import kr.prism.nowflix.data.FileMetaCacheStore
 import kr.prism.nowflix.data.KioskConfig
@@ -68,8 +76,8 @@ import kr.prism.nowflix.data.PlaylistMetaRepository
 import kr.prism.nowflix.data.RetrofitSupabaseSource
 import kr.prism.nowflix.data.RetrofitYoutubeSource
 import kr.prism.nowflix.data.SupabaseService
-import kr.prism.nowflix.data.Video
 import kr.prism.nowflix.data.YoutubeService
+import kr.prism.nowflix.player.IdleReturnMachine
 import kr.prism.nowflix.ui.PartDetailScreen
 import kr.prism.nowflix.ui.PlayerScreen
 
@@ -94,34 +102,90 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         hideSystemBars()
+        keepScreenOnAndBright()
         setContent {
             MaterialTheme {
-                // Three-screen kiosk: home grid -> a part's video list -> the player.
-                // State-hoisted here rather than a nav library — the destinations are fixed.
-                var selected by remember { mutableStateOf<Part?>(null) }
-                var playback by remember { mutableStateOf<Playback?>(null) }
+                // Three-screen kiosk: home grid -> a part's video list -> the player. The whole
+                // navigation + playback state is one hoisted value so the idle reset is atomic.
+                var nav by remember { mutableStateOf(KioskNavState()) }
                 val descriptions = rememberDescriptions()
                 // Supabase-backed config (parts + settings) with silent cache/asset fallback.
                 val config = rememberKioskConfig()
 
-                val session = playback
-                val part = selected
-                when {
-                    // Player sits on top of the detail screen; leaving it returns to the list.
-                    session != null -> PlayerScreen(
-                        videos = session.videos,
-                        startIndex = session.startIndex,
-                        onBack = { playback = null },
+                // Single idle-return authority for the whole kiosk. Monotonic clock so wall-clock
+                // changes never skew it; tests inject a fake clock instead.
+                val machine = remember {
+                    IdleReturnMachine(
+                        clock = { SystemClock.uptimeMillis() },
+                        idleReturnSeconds = config.settings.idleReturnSeconds,
                     )
-                    part != null -> PartDetailScreen(
-                        part = part,
-                        description = descriptions[part.playlistId].orEmpty(),
-                        onBack = { selected = null },
-                        onPlay = { videos, startIndex ->
-                            playback = Playback(videos, startIndex)
-                        },
-                    )
-                    else -> HomeScreen(parts = config.parts, onPartClick = { selected = it })
+                }
+                LaunchedEffect(config.settings.idleReturnSeconds) {
+                    machine.idleReturnSeconds = config.settings.idleReturnSeconds
+                }
+                // Playing vs browsing drives which rule applies; entering either resets the run.
+                LaunchedEffect(nav.isPlaying) { machine.setPlaying(nav.isPlaying) }
+
+                val homeListState = rememberLazyListState()
+                val scope = rememberCoroutineScope()
+
+                fun goHome() {
+                    nav = nav.returnToHome()
+                    machine.onReturnHome()
+                    scope.launch { homeListState.scrollToItem(0) }
+                }
+
+                // Rule A (browsing): poll the idle timeout once a second. Playback is exempt —
+                // rule B (auto-advance count) handles it, so a still viewer is never interrupted.
+                LaunchedEffect(Unit) {
+                    while (true) {
+                        delay(1000)
+                        if (machine.isIdleExpired()) goHome()
+                    }
+                }
+
+                // Whole-screen touch observer. Runs on the Initial pass so it sees every touch
+                // before any child (including the player's event-consuming shield) without
+                // stealing it — observe only, never consume.
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                    if (event.changes.any { it.pressed }) machine.onTouch()
+                                }
+                            }
+                        }
+                ) {
+                    val session = nav.playback
+                    val part = nav.selectedPart
+                    when {
+                        // Player sits on top of the detail screen; leaving it returns to the list.
+                        session != null -> PlayerScreen(
+                            videos = session.videos,
+                            startIndex = session.startIndex,
+                            onBack = { nav = nav.closePlayer() },
+                            onAutoAdvance = {
+                                val goHomeNow = machine.onAutoAdvance()
+                                if (goHomeNow) goHome()
+                                goHomeNow
+                            },
+                            onManualNav = { machine.onManualNext() },
+                        )
+                        part != null -> PartDetailScreen(
+                            part = part,
+                            description = descriptions[part.playlistId].orEmpty(),
+                            onBack = { nav = nav.closePart() },
+                            onPlay = { videos, startIndex -> nav = nav.play(videos, startIndex) },
+                        )
+                        else -> HomeScreen(
+                            parts = config.parts,
+                            listState = homeListState,
+                            onPartClick = { nav = nav.openPart(it) },
+                        )
+                    }
                 }
             }
         }
@@ -133,6 +197,17 @@ class MainActivity : ComponentActivity() {
         if (hasFocus) hideSystemBars()
     }
 
+    /**
+     * Lobby kiosk display policy: never sleep or lock, and stay at full brightness. Orientation
+     * is pinned to landscape in the manifest (`sensorLandscape`), so it is not re-asserted here.
+     */
+    private fun keepScreenOnAndBright() {
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        window.attributes = window.attributes.apply {
+            screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL
+        }
+    }
+
     private fun hideSystemBars() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
@@ -142,9 +217,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-
-/** An active playback session: the list to play through and where to start. */
-private data class Playback(val videos: List<Video>, val startIndex: Int)
 
 /**
  * Cache-first playlist descriptions, keyed by playlistId. One `playlists.list` call for all
@@ -189,7 +261,11 @@ private fun rememberKioskConfig(): KioskConfig {
 }
 
 @Composable
-private fun HomeScreen(parts: List<Part>, onPartClick: (Part) -> Unit) {
+private fun HomeScreen(
+    parts: List<Part>,
+    listState: LazyListState,
+    onPartClick: (Part) -> Unit,
+) {
     // Kiosk main screen swallows the back gesture — it must never exit the app.
     BackHandler(enabled = true) { /* no-op */ }
 
@@ -202,7 +278,7 @@ private fun HomeScreen(parts: List<Part>, onPartClick: (Part) -> Unit) {
         Column(modifier = Modifier.fillMaxSize()) {
             TopBand(modifier = Modifier.height(bandHeight))
             TopContentHeader(count = parts.size)
-            PartsRow(parts = parts, onPartClick = onPartClick)
+            PartsRow(parts = parts, listState = listState, onPartClick = onPartClick)
         }
     }
 }
@@ -268,7 +344,7 @@ private fun TopContentHeader(count: Int) {
 }
 
 @Composable
-private fun PartsRow(parts: List<Part>, onPartClick: (Part) -> Unit) {
+private fun PartsRow(parts: List<Part>, listState: LazyListState, onPartClick: (Part) -> Unit) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val cardWidthDp = CardMetrics.cardWidthDp(
             rowWidthDp = maxWidth.value,
@@ -277,6 +353,7 @@ private fun PartsRow(parts: List<Part>, onPartClick: (Part) -> Unit) {
             gapDp = CardGap.value,
         ).dp
         LazyRow(
+            state = listState,
             contentPadding = PaddingValues(horizontal = RowSidePadding, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(CardGap),
             modifier = Modifier.fillMaxWidth(),

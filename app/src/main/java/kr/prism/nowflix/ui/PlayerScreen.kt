@@ -83,6 +83,11 @@ fun PlayerScreen(
     videos: List<Video>,
     startIndex: Int,
     onBack: () -> Unit,
+    // A video ended and the next is about to auto-start. Returns true when the idle rule has
+    // tripped (too many touch-free auto-advances) and the host is returning home — stop here.
+    onAutoAdvance: () -> Boolean = { false },
+    // The user deliberately changed video (next button / row pick) — never an auto-advance.
+    onManualNav: () -> Unit = {},
 ) {
     if (videos.isEmpty()) {
         // Nothing to play — treat as "return to the list".
@@ -101,13 +106,24 @@ fun PlayerScreen(
     val scrubbing = remember { mutableStateOf(false) }
     val now = remember { OffsetDateTime.now() }
 
-    // Advance to the next video; when there is none, return to the list. Wrapped in
-    // rememberUpdatedState so the once-created player listener always sees the latest index.
-    val goNext by rememberUpdatedState {
-        when (val next = PlaybackQueue.nextIndex(currentIndex, videos.size)) {
+    // Load the next video, or return to the list when there is none.
+    fun advanceTo(next: Int?) {
+        when (next) {
             null -> onBack()
             else -> currentIndex = next
         }
+    }
+
+    // Auto-advance (a video ended on its own). Reports to the idle rule first: if it says the
+    // seat is empty, the host is tearing the player down, so don't load anything. Wrapped in
+    // rememberUpdatedState so the once-created player listener always sees the latest index.
+    val advanceAuto by rememberUpdatedState {
+        if (!onAutoAdvance()) advanceTo(PlaybackQueue.nextIndex(currentIndex, videos.size))
+    }
+    // Manual next ("다음 영상" button): a deliberate action, so it resets the auto-advance run.
+    val advanceManual by rememberUpdatedState {
+        onManualNav()
+        advanceTo(PlaybackQueue.nextIndex(currentIndex, videos.size))
     }
 
     val listener = remember {
@@ -135,7 +151,7 @@ fun PlayerScreen(
                     // (which are exits out of the embed) get a chance to render.
                     PlayerConstants.PlayerState.ENDED -> {
                         isPlaying = false
-                        goNext()
+                        advanceAuto()
                     }
                     else -> Unit
                 }
@@ -175,7 +191,7 @@ fun PlayerScreen(
                 onSeek = { fraction ->
                     player?.seekTo(PlayerProgress.seekSeconds(fraction, durationSec.floatValue))
                 },
-                onNext = { goNext() },
+                onNext = { advanceManual() },
                 onBack = onBack,
             )
             NowPlayingMeta(video = videos[currentIndex], now = now)
@@ -186,7 +202,7 @@ fun PlayerScreen(
             videos = videos,
             currentIndex = currentIndex,
             now = now,
-            onSelect = { index -> currentIndex = index },
+            onSelect = { index -> onManualNav(); currentIndex = index },
             modifier = Modifier
                 .weight(0.35f)
                 .fillMaxHeight(),
