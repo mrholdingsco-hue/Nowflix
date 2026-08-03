@@ -92,13 +92,18 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-shot-api34-pixelc-v1
+          key: avd-shot-api30-pixelc-v2
 
+      # API 30 google_apis boots far more reliably on GitHub runners than 34, and the screenshot
+      # screens are pure Compose (no device-owner APIs), so a lower level is fine (minSdk 29).
+      # continue-on-error: a flaky cold boot here must not kill the job — the run step below then
+      # gets a second boot attempt instead of the whole job failing at the warm-up.
       - name: Create AVD + snapshot (cache miss only)
         if: steps.avd-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
+          api-level: 30
           target: google_apis
           arch: x86_64
           profile: pixel_c
@@ -113,7 +118,7 @@ jobs:
       - name: Instrumented tests + capture screenshots
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
+          api-level: 30
           target: google_apis
           arch: x86_64
           profile: pixel_c
