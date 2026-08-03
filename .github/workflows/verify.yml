@@ -83,23 +83,12 @@ jobs:
       - name: Write dummy local.properties
         run: printf '%s' "$DUMMY_LOCAL_PROPERTIES" > local.properties
 
-      # Cache a booted AVD snapshot. Cold boots on GitHub runners are flaky; once one run seeds
-      # the snapshot, later runs load it (fast + reliable) instead of cold-booting each time.
-      - name: AVD cache
-        uses: actions/cache@v4
-        id: avd-cache
-        with:
-          path: |
-            ~/.android/avd/*
-            ~/.android/adb*
-          key: avd-shot-api30-pixelc-v2
-
-      # API 30 google_apis boots far more reliably on GitHub runners than 34, and the screenshot
-      # screens are pure Compose (no device-owner APIs), so a lower level is fine (minSdk 29).
-      # continue-on-error: a flaky cold boot here must not kill the job — the run step below then
-      # gets a second boot attempt instead of the whole job failing at the warm-up.
-      - name: Create AVD + snapshot (cache miss only)
-        if: steps.avd-cache.outputs.cache-hit != 'true'
+      # Emulator boot on GitHub runners is flaky (~1-in-4 cold boots). Lean config close to the one
+      # that did boot (no ram-size/cores overrides — bumping RAM to 4G on a 7G runner OOM-kills the
+      # emulator), API 30 (minSdk 29; these screens need no device-owner APIs), and TWO attempts:
+      # attempt 2 only runs if attempt 1 produced no PNGs. Both call the same capture script.
+      - name: Capture screenshots (attempt 1)
+        id: cap1
         continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -107,65 +96,24 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_c
-          cores: 2
-          ram-size: 4096M
-          force-avd-creation: false
           emulator-boot-timeout: 900
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: echo "AVD snapshot created for caching."
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/ci-capture-screens.sh
 
-      - name: Instrumented tests + capture screenshots
+      - name: Capture screenshots (attempt 2, only if none yet)
+        if: hashFiles('screenshots/*.png') == ''
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
           target: google_apis
           arch: x86_64
           profile: pixel_c
-          cores: 2
-          ram-size: 4096M
-          force-avd-creation: false
           emulator-boot-timeout: 900
           disable-animations: true
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: |
-            set -x
-            set +e
-            echo "emulator script started $(date -u +%H:%M:%S)" | tee booted.txt
-
-            # Root adb so we can read the app's Android/data (scoped storage blocks the shell user
-            # on API 30+, which is why earlier runs pulled zero screenshots). google_apis is userdebug.
-            adb root && adb wait-for-device && sleep 3
-
-            # Tablet lobby orientation: force landscape so the captured screens match the field.
-            adb shell settings put system accelerometer_rotation 0
-            adb shell settings put system user_rotation 1
-
-            # 1) DEDICATED screenshot capture FIRST + pull immediately, so nothing else (a long or
-            #    failing behavioural run, a timeout, a wedged daemon) can block or wipe the screens.
-            ./gradlew connectedDebugAndroidTest \
-              -Pandroid.testInstrumentationRunnerArguments.class=kr.prism.nowflix.ScreenshotTest \
-              --stacktrace 2>&1 | tee screenshot-capture.log
-            SHOT_EXIT=${PIPESTATUS[0]}
-
-            # Record exactly what the app wrote to the device, then pull it (two known paths).
-            adb shell ls -la "$APP_EXTERNAL_DIR/screenshots" > device-screenshots-ls.txt 2>&1 || true
-            echo "---- device screenshots dir ----"; cat device-screenshots-ls.txt
-            adb pull "$APP_EXTERNAL_DIR/screenshots" ./ 2>/dev/null || true
-            if ! ls screenshots/*.png >/dev/null 2>&1; then
-              adb pull "/data/media/0/Android/data/kr.prism.nowflix/files/screenshots" ./ 2>/dev/null || true
-            fi
-            ls -al screenshots || echo "no screenshots dir"
-            adb logcat -d > instrumented-logcat.txt 2>/dev/null || true
-
-            # 2) Full behavioural suite afterwards (allowed to fail; capped so it can never eat the
-            #    whole 60-min job budget and starve the always() diagnostics upload).
-            timeout 1500 ./gradlew connectedDebugAndroidTest --stacktrace 2>&1 | tee connected.log
-            BEHAVIOR_EXIT=${PIPESTATUS[0]}
-
-            echo "SHOT_EXIT=$SHOT_EXIT BEHAVIOR_EXIT=$BEHAVIOR_EXIT"
-            # Job outcome tracks the screenshot capture specifically; behavioural failures don't block.
-            exit $SHOT_EXIT
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/ci-capture-screens.sh
 
       - name: Upload instrumented diagnostics
         if: always()
