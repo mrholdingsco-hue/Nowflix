@@ -132,11 +132,19 @@ jobs:
 
       - name: Build contact sheet
         if: always()
+        continue-on-error: true   # a convenience overview; never fail the job over it
         run: |
           if ls screenshots/*.png >/dev/null 2>&1; then
+            # ImageMagick is no longer preinstalled on ubuntu-latest (montage was missing, which
+            # silently failed this step and marked the whole job failed even though every test
+            # passed and all 7 screenshots were captured). Install it, then build the sheet.
+            if ! command -v montage >/dev/null 2>&1; then
+              sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick || true
+            fi
             montage screenshots/*.png -tile 2x4 -geometry +6+6 -background '#111111' \
-              -title 'NOWFLIX Kiosk — STEP 9 screens' -fill white contact-sheet.png
-            echo "contact-sheet.png built from:"; ls -1 screenshots/*.png
+              -title 'NOWFLIX Kiosk - STEP 9 screens' -fill white contact-sheet.png \
+              && echo "contact-sheet.png built from:" && ls -1 screenshots/*.png \
+              || echo "montage unavailable — skipping contact sheet (individual PNGs still uploaded)."
           else
             echo "No screenshots were captured."
           fi
