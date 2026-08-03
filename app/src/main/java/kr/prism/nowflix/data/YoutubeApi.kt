@@ -63,7 +63,12 @@ class RetrofitYoutubeSource(
 
 /** Lazily-built singleton Retrofit stack for the YouTube Data API. */
 object YoutubeService {
-    private const val BASE_URL = "https://www.googleapis.com/youtube/v3/"
+    private const val DEFAULT_BASE_URL = "https://www.googleapis.com/youtube/v3/"
+
+    // Test seam: instrumented tests point this at a local MockWebServer (with a trailing slash)
+    // before first access to [api]. Null in production, where the real endpoint is used.
+    @Volatile
+    var baseUrlOverride: String? = null
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -74,12 +79,14 @@ object YoutubeService {
             .build()
     }
 
-    val api: YoutubeApi by lazy {
-        Retrofit.Builder()
-            .baseUrl(BASE_URL)
+    // Rebuilt per access (the OkHttp client is shared, so this is cheap) rather than cached, so
+    // an instrumented test's [baseUrlOverride] always takes effect — a `by lazy` would freeze the
+    // very first base URL for the whole process and defeat per-test MockWebServer redirection.
+    val api: YoutubeApi
+        get() = Retrofit.Builder()
+            .baseUrl(baseUrlOverride ?: DEFAULT_BASE_URL)
             .client(client)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(YoutubeApi::class.java)
-    }
 }

@@ -57,6 +57,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -132,162 +133,21 @@ class MainActivity : ComponentActivity() {
         reentry = LockTaskReentry(clock = { SystemClock.uptimeMillis() })
 
         setContent {
-            MaterialTheme {
-                // Three-screen kiosk: home grid -> a part's video list -> the player. The whole
-                // navigation + playback state is one hoisted value so the idle reset is atomic.
-                var nav by remember { mutableStateOf(KioskNavState()) }
-                val descriptions = rememberDescriptions()
-                // Supabase-backed config (parts + settings) with silent cache/asset fallback.
-                val configHolder = rememberKioskConfig()
-                val config = configHolder.config
-
-                // Escape-path state, orthogonal to browse/play nav: hidden gesture -> PIN -> admin.
-                var showPin by remember { mutableStateOf(false) }
-                var showAdmin by remember { mutableStateOf(false) }
-                val pinGate = remember { PinGate(clock = { SystemClock.uptimeMillis() }) }
-                LaunchedEffect(showPin, showAdmin) { escapeOverlayOpen = showPin || showAdmin }
-
-                // Last successful remote-config receipt, stamped when a live fetch lands.
-                var lastRemoteAt by remember { mutableStateOf<Long?>(null) }
-                LaunchedEffect(config) { if (config.fromRemote) lastRemoteAt = System.currentTimeMillis() }
-
-                // Single idle-return authority for the whole kiosk. Monotonic clock so wall-clock
-                // changes never skew it; tests inject a fake clock instead.
-                val machine = remember {
-                    IdleReturnMachine(
-                        clock = { SystemClock.uptimeMillis() },
-                        idleReturnSeconds = config.settings.idleReturnSeconds,
-                    )
-                }
-                LaunchedEffect(config.settings.idleReturnSeconds) {
-                    machine.idleReturnSeconds = config.settings.idleReturnSeconds
-                }
-                // Playing vs browsing drives which rule applies; entering either resets the run.
-                LaunchedEffect(nav.isPlaying) { machine.setPlaying(nav.isPlaying) }
-
-                val homeListState = rememberLazyListState()
-                val scope = rememberCoroutineScope()
-
-                fun goHome() {
-                    nav = nav.returnToHome()
-                    machine.onReturnHome()
-                    scope.launch { homeListState.scrollToItem(0) }
-                }
-
-                // Rule A (browsing): poll the idle timeout once a second. Playback is exempt —
-                // rule B (auto-advance count) handles it, so a still viewer is never interrupted.
-                LaunchedEffect(Unit) {
-                    while (true) {
-                        delay(1000)
-                        if (machine.isIdleExpired()) goHome()
-                    }
-                }
-
-                // Safety belt: only enter the lock AFTER this composition (with the escape
-                // gesture + PIN/admin overlays below) is live. Never lock on start unconditionally.
-                LaunchedEffect(Unit) { enterKioskLock() }
-
-                // Whole-screen touch observer. Runs on the Initial pass so it sees every touch
-                // before any child (including the player's event-consuming shield) without
-                // stealing it — observe only, never consume.
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .pointerInput(Unit) {
-                            awaitPointerEventScope {
-                                while (true) {
-                                    val event = awaitPointerEvent(PointerEventPass.Initial)
-                                    if (event.changes.any { it.pressed }) machine.onTouch()
-                                }
-                            }
-                        }
-                ) {
-                    val session = nav.playback
-                    val part = nav.selectedPart
-                    when {
-                        // Player sits on top of the detail screen; leaving it returns to the list.
-                        session != null -> PlayerScreen(
-                            videos = session.videos,
-                            startIndex = session.startIndex,
-                            onBack = { nav = nav.closePlayer() },
-                            onAutoAdvance = {
-                                val goHomeNow = machine.onAutoAdvance()
-                                if (goHomeNow) goHome()
-                                goHomeNow
-                            },
-                            onManualNav = { machine.onManualNext() },
-                        )
-                        part != null -> PartDetailScreen(
-                            part = part,
-                            description = descriptions[part.playlistId].orEmpty(),
-                            onBack = { nav = nav.closePart() },
-                            onPlay = { videos, startIndex -> nav = nav.play(videos, startIndex) },
-                        )
-                        else -> HomeScreen(
-                            parts = config.parts,
-                            listState = homeListState,
-                            onPartClick = { nav = nav.openPart(it) },
-                        )
-                    }
-
-                    // Escape path #1: hidden top-right hotspot, 3s long-press -> PIN. Topmost and
-                    // on the default (Main) pass, so it fires on every screen including the
-                    // player's event-consuming shield below it.
-                    if (!showPin && !showAdmin) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .size(96.dp)
-                                .pointerInput(Unit) {
-                                    awaitEachGesture {
-                                        awaitFirstDown(requireUnconsumed = false)
-                                        val releasedEarly = withTimeoutOrNull(3000L) {
-                                            waitForUpOrCancellation()
-                                            true
-                                        }
-                                        if (releasedEarly == null) showPin = true
-                                    }
-                                }
-                        )
-                    }
-
-                    if (showPin) {
-                        PinPad(
-                            onSubmit = { pin ->
-                                pinGate.submit(
-                                    pin,
-                                    PinGate.effectiveHash(config.settings.adminPinHash),
-                                )
-                            },
-                            lockedSecondsLeft = { pinGate.lockedSecondsLeft() },
-                            onAccepted = { showPin = false; showAdmin = true },
-                            onDismiss = { showPin = false },
-                        )
-                    }
-
-                    if (showAdmin) {
-                        AdminScreen(
-                            lockMode = lockMode,
-                            appVersion = BuildConfig.VERSION_NAME,
-                            lastRemoteAtMillis = lastRemoteAt,
-                            returnSeconds = config.settings.idleReturnSeconds,
-                            partCount = config.parts.size,
-                            adminWebUrl = BuildConfig.ADMIN_WEB_URL,
-                            refreshing = configHolder.refreshing,
-                            onRefresh = configHolder.refresh,
-                            onReleaseFully = {
-                                kiosk.releaseFully()
-                                finishAndRemoveTask()
-                            },
-                            onExitApp = {
-                                kiosk.stopLockTask()
-                                finishAndRemoveTask()
-                            },
-                            onClose = { showAdmin = false },
-                        )
-                    }
-                }
-            }
+            // Thin shell: all kiosk UI + state lives in the testable [KioskApp] composable.
+            // The Activity only supplies the lock-mode and the four host actions that need it.
+            KioskApp(
+                lockMode = lockMode,
+                onEnterLock = { enterKioskLock() },
+                onEscapeOverlayChanged = { escapeOverlayOpen = it },
+                onReleaseFully = {
+                    kiosk.releaseFully()
+                    finishAndRemoveTask()
+                },
+                onExitApp = {
+                    kiosk.stopLockTask()
+                    finishAndRemoveTask()
+                },
+            )
         }
     }
 
@@ -344,6 +204,179 @@ class MainActivity : ComponentActivity() {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior =
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+    }
+}
+
+/**
+ * The whole kiosk UI + state, hoisted out of [MainActivity] so it can be driven directly by
+ * instrumented tests (with a no-op host and MockWebServer-backed data) — the Activity is a thin
+ * shell around this. Behaviour is identical to the original inline composition; the only change
+ * is that the four Activity-owned actions are passed in as callbacks.
+ *
+ *  - [lockMode]                which lock strength the admin screen reports.
+ *  - [onEnterLock]             enter the kiosk lock, once, after this tree is live (safety belt).
+ *  - [onEscapeOverlayChanged]  true while the PIN/admin overlay is open — the Activity reads it
+ *                              from onResume so FALLBACK re-entry never fights the operator.
+ *  - [onReleaseFully]/[onExitApp] the two admin-screen safety actions.
+ */
+@Composable
+fun KioskApp(
+    lockMode: KioskLockMode,
+    onEnterLock: () -> Unit,
+    onEscapeOverlayChanged: (Boolean) -> Unit,
+    onReleaseFully: () -> Unit,
+    onExitApp: () -> Unit,
+) {
+    MaterialTheme {
+        // Three-screen kiosk: home grid -> a part's video list -> the player. The whole
+        // navigation + playback state is one hoisted value so the idle reset is atomic.
+        var nav by remember { mutableStateOf(KioskNavState()) }
+        val descriptions = rememberDescriptions()
+        // Supabase-backed config (parts + settings) with silent cache/asset fallback.
+        val configHolder = rememberKioskConfig()
+        val config = configHolder.config
+
+        // Escape-path state, orthogonal to browse/play nav: hidden gesture -> PIN -> admin.
+        var showPin by remember { mutableStateOf(false) }
+        var showAdmin by remember { mutableStateOf(false) }
+        val pinGate = remember { PinGate(clock = { SystemClock.uptimeMillis() }) }
+        LaunchedEffect(showPin, showAdmin) { onEscapeOverlayChanged(showPin || showAdmin) }
+
+        // Last successful remote-config receipt, stamped when a live fetch lands.
+        var lastRemoteAt by remember { mutableStateOf<Long?>(null) }
+        LaunchedEffect(config) { if (config.fromRemote) lastRemoteAt = System.currentTimeMillis() }
+
+        // Single idle-return authority for the whole kiosk. Monotonic clock so wall-clock
+        // changes never skew it; tests inject a fake clock instead.
+        val machine = remember {
+            IdleReturnMachine(
+                clock = { SystemClock.uptimeMillis() },
+                idleReturnSeconds = config.settings.idleReturnSeconds,
+            )
+        }
+        LaunchedEffect(config.settings.idleReturnSeconds) {
+            machine.idleReturnSeconds = config.settings.idleReturnSeconds
+        }
+        // Playing vs browsing drives which rule applies; entering either resets the run.
+        LaunchedEffect(nav.isPlaying) { machine.setPlaying(nav.isPlaying) }
+
+        val homeListState = rememberLazyListState()
+        val scope = rememberCoroutineScope()
+
+        fun goHome() {
+            nav = nav.returnToHome()
+            machine.onReturnHome()
+            scope.launch { homeListState.scrollToItem(0) }
+        }
+
+        // Rule A (browsing): poll the idle timeout once a second. Playback is exempt —
+        // rule B (auto-advance count) handles it, so a still viewer is never interrupted.
+        LaunchedEffect(Unit) {
+            while (true) {
+                delay(1000)
+                if (machine.isIdleExpired()) goHome()
+            }
+        }
+
+        // Safety belt: only enter the lock AFTER this composition (with the escape
+        // gesture + PIN/admin overlays below) is live. Never lock on start unconditionally.
+        LaunchedEffect(Unit) { onEnterLock() }
+
+        // Whole-screen touch observer. Runs on the Initial pass so it sees every touch
+        // before any child (including the player's event-consuming shield) without
+        // stealing it — observe only, never consume.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            if (event.changes.any { it.pressed }) machine.onTouch()
+                        }
+                    }
+                }
+        ) {
+            val session = nav.playback
+            val part = nav.selectedPart
+            when {
+                // Player sits on top of the detail screen; leaving it returns to the list.
+                session != null -> PlayerScreen(
+                    videos = session.videos,
+                    startIndex = session.startIndex,
+                    onBack = { nav = nav.closePlayer() },
+                    onAutoAdvance = {
+                        val goHomeNow = machine.onAutoAdvance()
+                        if (goHomeNow) goHome()
+                        goHomeNow
+                    },
+                    onManualNav = { machine.onManualNext() },
+                )
+                part != null -> PartDetailScreen(
+                    part = part,
+                    description = descriptions[part.playlistId].orEmpty(),
+                    onBack = { nav = nav.closePart() },
+                    onPlay = { videos, startIndex -> nav = nav.play(videos, startIndex) },
+                )
+                else -> HomeScreen(
+                    parts = config.parts,
+                    listState = homeListState,
+                    onPartClick = { nav = nav.openPart(it) },
+                )
+            }
+
+            // Escape path #1: hidden top-right hotspot, 3s long-press -> PIN. Topmost and
+            // on the default (Main) pass, so it fires on every screen including the
+            // player's event-consuming shield below it.
+            if (!showPin && !showAdmin) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(96.dp)
+                        .testTag("pinHotspot")
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false)
+                                val releasedEarly = withTimeoutOrNull(3000L) {
+                                    waitForUpOrCancellation()
+                                    true
+                                }
+                                if (releasedEarly == null) showPin = true
+                            }
+                        }
+                )
+            }
+
+            if (showPin) {
+                PinPad(
+                    onSubmit = { pin ->
+                        pinGate.submit(
+                            pin,
+                            PinGate.effectiveHash(config.settings.adminPinHash),
+                        )
+                    },
+                    lockedSecondsLeft = { pinGate.lockedSecondsLeft() },
+                    onAccepted = { showPin = false; showAdmin = true },
+                    onDismiss = { showPin = false },
+                )
+            }
+
+            if (showAdmin) {
+                AdminScreen(
+                    lockMode = lockMode,
+                    appVersion = BuildConfig.VERSION_NAME,
+                    lastRemoteAtMillis = lastRemoteAt,
+                    returnSeconds = config.settings.idleReturnSeconds,
+                    partCount = config.parts.size,
+                    adminWebUrl = BuildConfig.ADMIN_WEB_URL,
+                    refreshing = configHolder.refreshing,
+                    onRefresh = configHolder.refresh,
+                    onReleaseFully = onReleaseFully,
+                    onExitApp = onExitApp,
+                    onClose = { showAdmin = false },
+                )
+            }
         }
     }
 }
@@ -410,7 +443,7 @@ private fun rememberKioskConfig(): KioskConfigHolder {
 }
 
 @Composable
-private fun HomeScreen(
+internal fun HomeScreen(
     parts: List<Part>,
     listState: LazyListState,
     onPartClick: (Part) -> Unit,

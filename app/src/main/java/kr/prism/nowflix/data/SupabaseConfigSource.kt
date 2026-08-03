@@ -48,9 +48,15 @@ class RetrofitSupabaseSource(private val api: SupabaseApi) : SupabaseConfigSourc
  */
 object SupabaseService {
 
+    // Test seam: instrumented tests point this at a local MockWebServer before building the
+    // config source. Null in production, where the BuildConfig URL passed to [create] is used.
+    @Volatile
+    var baseUrlOverride: String? = null
+
     private val json = Json { ignoreUnknownKeys = true }
 
     fun create(baseUrl: String, anonKey: String): SupabaseApi {
+        val effectiveBaseUrl = baseUrlOverride ?: baseUrl
         val client = OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
@@ -64,7 +70,7 @@ object SupabaseService {
             .build()
         return Retrofit.Builder()
             // PostgREST lives under /rest/v1/ ; trailing slash matters for relative paths.
-            .baseUrl(baseUrl.trimEnd('/') + "/rest/v1/")
+            .baseUrl(effectiveBaseUrl.trimEnd('/') + "/rest/v1/")
             .client(client)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()

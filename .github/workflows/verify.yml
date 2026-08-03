@@ -1,0 +1,265 @@
+name: verify
+
+# STEP 9 visual + behavioural verification. This VM has no KVM, so the emulator jobs run here.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Newer pushes cancel in-flight runs of this workflow on the same branch.
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # No secrets in CI. Dummy build config keeps the build valid and lets the app fall back to
+  # bundled assets; every UI/data test instead redirects the network to a local MockWebServer.
+  DUMMY_LOCAL_PROPERTIES: |
+    YOUTUBE_API_KEY=ci-dummy
+    SUPABASE_URL=http://localhost
+    SUPABASE_ANON_KEY=ci-dummy
+  APP_EXTERNAL_DIR: /sdcard/Android/data/kr.prism.nowflix/files
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1 — pure JVM unit tests.
+  # ---------------------------------------------------------------------------
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Write dummy local.properties
+        run: printf '%s' "$DUMMY_LOCAL_PROPERTIES" > local.properties
+
+      - name: Run unit tests
+        run: ./gradlew test --stacktrace
+
+      - name: Upload unit test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-report
+          path: app/build/reports/tests/
+
+  # ---------------------------------------------------------------------------
+  # Job 2 — instrumented tests + screenshots on an emulator.
+  # ---------------------------------------------------------------------------
+  instrumented-and-screenshots:
+    name: Instrumented tests + screenshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Write dummy local.properties
+        run: printf '%s' "$DUMMY_LOCAL_PROPERTIES" > local.properties
+
+      - name: Instrumented tests + capture screenshots
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_c
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: |
+            set +e
+            # Tablet lobby orientation: force landscape so the captured screens match the field.
+            adb shell settings put system accelerometer_rotation 0
+            adb shell settings put system user_rotation 1
+
+            # Run every androidTest (flows, player shield, data layer, screenshot capture).
+            ./gradlew connectedDebugAndroidTest --stacktrace
+            TEST_EXIT=$?
+
+            # Always pull whatever screenshots were captured, even if some tests failed.
+            adb pull "$APP_EXTERNAL_DIR/screenshots" ./ 2>/dev/null || true
+            ls -al screenshots || echo "no screenshots dir"
+
+            exit $TEST_EXIT
+
+      - name: Build contact sheet
+        if: always()
+        run: |
+          if ls screenshots/*.png >/dev/null 2>&1; then
+            montage screenshots/*.png -tile 2x4 -geometry +6+6 -background '#111111' \
+              -title 'NOWFLIX Kiosk — STEP 9 screens' -fill white contact-sheet.png
+            echo "contact-sheet.png built from:"; ls -1 screenshots/*.png
+          else
+            echo "No screenshots were captured."
+          fi
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: |
+            screenshots/*.png
+            contact-sheet.png
+          if-no-files-found: warn
+
+      - name: Upload instrumented test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instrumented-test-report
+          path: app/build/reports/androidTests/
+
+  # ---------------------------------------------------------------------------
+  # Job 3 — kiosk device-owner lock verification on an emulator (no accounts).
+  # ---------------------------------------------------------------------------
+  kiosk-lock:
+    name: Kiosk lock (device owner)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Write dummy local.properties
+        run: printf '%s' "$DUMMY_LOCAL_PROPERTIES" > local.properties
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Verify kiosk lock + release
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_c
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: |
+            set -e
+            APK=app/build/outputs/apk/debug/app-debug.apk
+            COMP=kr.prism.nowflix/.kiosk.KioskAdminReceiver
+            PKG=kr.prism.nowflix
+            PASS=0; FAIL=0
+            check() { # check "<label>" <0-if-pass>
+              if [ "$2" -eq 0 ]; then echo "PASS  $1"; PASS=$((PASS+1));
+              else echo "FAIL  $1"; FAIL=$((FAIL+1)); fi
+            }
+            focus() { adb shell dumpsys window 2>/dev/null | grep -m1 -i mCurrentFocus; }
+
+            echo "::group::Install + device owner"
+            adb install -r -t "$APK"
+            # Emulator has no accounts, so device-owner provisioning succeeds.
+            adb shell dpm set-device-owner "$COMP"
+            adb shell dpm list-owners || true
+            echo "::endgroup::"
+
+            echo "::group::Launch + settle"
+            adb shell am start -n "$PKG/.MainActivity"
+            sleep 8
+            adb logcat -d -s Nowflix:* KioskController:* | tail -n 40
+            echo "::endgroup::"
+
+            echo "==================  KIOSK LOCK CHECKS  =================="
+
+            # (1) App entered FULL_LOCK mode.
+            adb logcat -d -s Nowflix:I | grep -q "enterKioskLock: mode=FULL_LOCK"
+            check "(1) FULL_LOCK mode entered" $?
+
+            # (2) Lock task is actually active (state != NONE).
+            LTS=$(adb shell dumpsys activity activities | grep -m1 -i mLockTaskModeState || true)
+            echo "    lockTaskModeState: $LTS"
+            echo "$LTS" | grep -qiE "LOCKED|PINNED"
+            check "(2) lock task active" $?
+
+            # (3) HOME and RECENTS key events are swallowed (focus stays on our app).
+            BEFORE=$(focus); echo "    focus before: $BEFORE"
+            adb shell input keyevent KEYCODE_HOME
+            adb shell input keyevent KEYCODE_APP_SWITCH
+            sleep 2
+            AFTER=$(focus); echo "    focus after HOME+RECENTS: $AFTER"
+            echo "$AFTER" | grep -q "$PKG"
+            check "(3) HOME + RECENTS ignored (still focused on kiosk)" $?
+
+            # (4) Status bar / notification shade is inaccessible under the lock.
+            adb shell cmd statusbar expand-notifications >/dev/null 2>&1 || true
+            sleep 1
+            SB=$(focus); echo "    focus after shade attempt: $SB"
+            echo "$SB" | grep -q "$PKG"
+            check "(4) status bar / shade blocked" $?
+
+            echo "==================  RELEASE (hospital hand-off safety net)  =================="
+            # The app is testOnly=true, so device ownership can always be relinquished with adb —
+            # the documented recovery (docs/kiosk-recovery.md). This is the exact "완전 해제" outcome:
+            # owner removed and the device usable again.
+            adb shell dpm remove-active-admin "$COMP" || true
+            sleep 2
+            OWNERS=$(adb shell dpm list-owners 2>/dev/null || true)
+            echo "    owners after release: $OWNERS"
+            echo "$OWNERS" | grep -q "$PKG" && REL_OWNER=1 || REL_OWNER=0
+            check "(5) device owner released" $REL_OWNER
+
+            # Device usable again: after release + HOME, lock task drops back to NONE.
+            adb shell input keyevent KEYCODE_HOME
+            sleep 2
+            LTS2=$(adb shell dumpsys activity activities | grep -m1 -i mLockTaskModeState || true)
+            echo "    lockTaskModeState after release: $LTS2"
+            echo "$LTS2" | grep -qi "NONE"
+            check "(6) lock task released, device usable again" $?
+
+            echo "========================================================"
+            echo "RESULT: $PASS passed, $FAIL failed"
+
+            adb logcat -d > kiosk-logcat.txt || true
+            [ "$FAIL" -eq 0 ]
+
+      - name: Upload kiosk logcat
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kiosk-logcat
+          path: kiosk-logcat.txt
+          if-no-files-found: ignore

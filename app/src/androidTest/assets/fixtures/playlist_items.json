@@ -1,0 +1,110 @@
+{
+  "kind": "youtube#playlistItemListResponse",
+  "pageInfo": { "totalResults": 8, "resultsPerPage": 50 },
+  "items": [
+    {
+      "snippet": {
+        "title": "무릎 통증, 이 스트레칭 하나면 끝",
+        "publishedAt": "2019-05-14T09:00:11Z",
+        "resourceId": { "kind": "youtube#video", "videoId": "aA1bB2cC3dD" },
+        "videoOwnerChannelTitle": "고쳐줘 NOW",
+        "thumbnails": {
+          "medium": { "url": "https://i.ytimg.com/vi/aA1bB2cC3dD/mqdefault.jpg", "width": 320, "height": 180 },
+          "high": { "url": "https://i.ytimg.com/vi/aA1bB2cC3dD/hqdefault.jpg", "width": 480, "height": 360 }
+        }
+      },
+      "contentDetails": { "videoId": "aA1bB2cC3dD", "videoPublishedAt": "2019-05-14T09:00:11Z" }
+    },
+    {
+      "snippet": {
+        "title": "계단 오를 때 무릎이 시큰하다면 꼭 보세요",
+        "publishedAt": "2020-02-03T02:30:00Z",
+        "resourceId": { "kind": "youtube#video", "videoId": "eE4fF5gG6hH" },
+        "videoOwnerChannelTitle": "고쳐줘 NOW",
+        "thumbnails": {
+          "medium": { "url": "https://i.ytimg.com/vi/eE4fF5gG6hH/mqdefault.jpg", "width": 320, "height": 180 },
+          "high": { "url": "https://i.ytimg.com/vi/eE4fF5gG6hH/hqdefault.jpg", "width": 480, "height": 360 }
+        }
+      },
+      "contentDetails": { "videoId": "eE4fF5gG6hH", "videoPublishedAt": "2020-02-03T02:30:00Z" }
+    },
+    {
+      "snippet": {
+        "title": "반월상 연골 손상, 수술 없이 회복하는 법",
+        "publishedAt": "2020-08-21T05:12:40Z",
+        "resourceId": { "kind": "youtube#video", "videoId": "iI7jJ8kK9lL" },
+        "videoOwnerChannelTitle": "고쳐줘 NOW",
+        "thumbnails": {
+          "medium": { "url": "https://i.ytimg.com/vi/iI7jJ8kK9lL/mqdefault.jpg", "width": 320, "height": 180 },
+          "high": { "url": "https://i.ytimg.com/vi/iI7jJ8kK9lL/hqdefault.jpg", "width": 480, "height": 360 }
+        }
+      },
+      "contentDetails": { "videoId": "iI7jJ8kK9lL", "videoPublishedAt": "2020-08-21T05:12:40Z" }
+    },
+    {
+      "snippet": {
+        "title": "무릎 관절염 초기 신호 3가지",
+        "publishedAt": "2021-01-11T23:45:00Z",
+        "resourceId": { "kind": "youtube#video", "videoId": "mM0nN1oO2pP" },
+        "videoOwnerChannelTitle": "고쳐줘 NOW",
+        "thumbnails": {
+          "medium": { "url": "https://i.ytimg.com/vi/mM0nN1oO2pP/mqdefault.jpg", "width": 320, "height": 180 },
+          "high": { "url": "https://i.ytimg.com/vi/mM0nN1oO2pP/hqdefault.jpg", "width": 480, "height": 360 }
+        }
+      },
+      "contentDetails": { "videoId": "mM0nN1oO2pP", "videoPublishedAt": "2021-01-11T23:45:00Z" }
+    },
+    {
+      "snippet": {
+        "title": "집에서 하는 무릎 강화 운동 5분 루틴",
+        "publishedAt": "2021-09-30T07:00:00Z",
+        "resourceId": { "kind": "youtube#video", "videoId": "qQ3rR4sS5tT" },
+        "videoOwnerChannelTitle": "고쳐줘 NOW",
+        "thumbnails": {
+          "medium": { "url": "https://i.ytimg.com/vi/qQ3rR4sS5tT/mqdefault.jpg", "width": 320, "height": 180 },
+          "high": { "url": "https://i.ytimg.com/vi/qQ3rR4sS5tT/hqdefault.jpg", "width": 480, "height": 360 }
+        }
+      },
+      "contentDetails": { "videoId": "qQ3rR4sS5tT", "videoPublishedAt": "2021-09-30T07:00:00Z" }
+    },
+    {
+      "snippet": {
+        "title": "무릎에서 소리가 나요, 위험한 신호일까?",
+        "publishedAt": "2022-04-18T11:20:05Z",
+        "resourceId": { "kind": "youtube#video", "videoId": "uU6vV7wW8xX" },
+        "videoOwnerChannelTitle": "고쳐줘 NOW",
+        "thumbnails": {
+          "medium": { "url": "https://i.ytimg.com/vi/uU6vV7wW8xX/mqdefault.jpg", "width": 320, "height": 180 },
+          "high": { "url": "https://i.ytimg.com/vi/uU6vV7wW8xX/hqdefault.jpg", "width": 480, "height": 360 }
+        }
+      },
+      "contentDetails": { "videoId": "uU6vV7wW8xX", "videoPublishedAt": "2022-04-18T11:20:05Z" }
+    },
+    {
+      "snippet": {
+        "title": "무릎 수술 후 재활, 이 순서대로 하세요",
+        "publishedAt": "2023-03-07T14:05:00Z",
+        "resourceId": { "kind": "youtube#video", "videoId": "yY9zZ0aA1bB" },
+        "videoOwnerChannelTitle": "고쳐줘 NOW",
+        "thumbnails": {
+          "medium": { "url": "https://i.ytimg.com/vi/yY9zZ0aA1bB/mqdefault.jpg", "width": 320, "height": 180 },
+          "high": { "url": "https://i.ytimg.com/vi/yY9zZ0aA1bB/hqdefault.jpg", "width": 480, "height": 360 }
+        }
+      },
+      "contentDetails": { "videoId": "yY9zZ0aA1bB", "videoPublishedAt": "2023-03-07T14:05:00Z" }
+    },
+    {
+      "snippet": {
+        "title": "무릎 건강을 지키는 생활 습관 총정리",
+        "publishedAt": "2024-06-25T22:10:33Z",
+        "resourceId": { "kind": "youtube#video", "videoId": "cC2dD3eE4fF" },
+        "videoOwnerChannelTitle": "고쳐줘 NOW",
+        "thumbnails": {
+          "medium": { "url": "https://i.ytimg.com/vi/cC2dD3eE4fF/mqdefault.jpg", "width": 320, "height": 180 },
+          "high": { "url": "https://i.ytimg.com/vi/cC2dD3eE4fF/hqdefault.jpg", "width": 480, "height": 360 }
+        }
+      },
+      "contentDetails": { "videoId": "cC2dD3eE4fF", "videoPublishedAt": "2024-06-25T22:10:33Z" }
+    }
+  ]
+}
