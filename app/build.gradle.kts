@@ -60,6 +60,14 @@ android {
         compose = true
         buildConfig = true
     }
+
+    testOptions {
+        // Run each instrumented test in its own process. A Compose LazyLayout prefetch callback
+        // (Choreographer-based) from a UI test was leaking across the shared instrumentation
+        // process and crashing a later pure-data test (ConfigNetworkTest) with "must have a
+        // looper!". Per-test isolation contains it; it does not change any assertion.
+        execution = "ANDROIDX_TEST_ORCHESTRATOR"
+    }
 }
 
 dependencies {
@@ -97,4 +105,6 @@ dependencies {
     androidTestImplementation(libs.kotlinx.coroutines.test)
     // Provides the empty host Activity that createComposeRule() launches.
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+    // Per-test process isolation for connectedAndroidTest (see testOptions above).
+    androidTestUtil("androidx.test:orchestrator:1.5.1")
 }

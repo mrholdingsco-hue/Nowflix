@@ -35,7 +35,19 @@ sleep 8
 adb logcat -d -s Nowflix:* KioskController:* | tail -n 40
 echo "::endgroup::"
 
+# Diagnostics captured into the (published) summary so the token-less watcher can see the actual
+# window/activity state at each step — mCurrentFocus parsing was the suspected cause of (3)/(4).
+DIAG="${GITHUB_WORKSPACE:-$PWD}/kiosk-diag.txt"; : > "$DIAG"
+diag() { # diag "<label>"
+  {
+    echo "===== $1 ====="
+    adb shell dumpsys window 2>/dev/null | grep -iE 'mCurrentFocus|mFocusedApp' | sed 's/^/  /'
+    adb shell dumpsys activity activities 2>/dev/null | grep -iE 'mResumedActivity|mLockTaskModeState|ResumedActivity' | head -4 | sed 's/^/  /'
+  } >> "$DIAG"
+}
+
 echo "==================  KIOSK LOCK CHECKS  =================="
+diag "after launch"
 
 # (1) App entered FULL_LOCK mode.
 adb logcat -d -s Nowflix:I | grep -q "enterKioskLock: mode=FULL_LOCK"
@@ -69,6 +81,7 @@ adb shell input keyevent KEYCODE_APP_SWITCH
 still_locked_on_kiosk
 RES3=$?
 echo "    focus after HOME+RECENTS: $(focus)"
+diag "after HOME+RECENTS"
 check "(3) HOME + RECENTS ignored (still focused on kiosk)" $RES3
 
 # (4) Status bar / notification shade is inaccessible under the lock.
@@ -76,6 +89,7 @@ adb shell cmd statusbar expand-notifications >/dev/null 2>&1 || true
 still_locked_on_kiosk
 RES4=$?
 echo "    focus after shade attempt: $(focus)"
+diag "after shade attempt"
 check "(4) status bar / shade blocked" $RES4
 
 echo "==================  RELEASE (hospital hand-off safety net)  =================="
@@ -99,6 +113,9 @@ check "(6) lock task released, device usable again" $?
 
 echo "========================================================"
 echo "RESULT: $PASS passed, $FAIL failed" | tee -a "$SUMMARY"
+
+# Fold the captured window/activity state into the published summary for the token-less watcher.
+{ echo; echo "---- DIAGNOSTICS (window/activity state) ----"; cat "$DIAG" 2>/dev/null; } >> "$SUMMARY"
 
 adb logcat -d > kiosk-logcat.txt || true
 [ "$FAIL" -eq 0 ]
