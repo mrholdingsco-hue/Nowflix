@@ -47,21 +47,36 @@ echo "    lockTaskModeState: $LTS"
 echo "$LTS" | grep -qiE "LOCKED|PINNED"
 check "(2) lock task active" $?
 
-# (3) HOME and RECENTS key events are swallowed (focus stays on our app).
+# Under a LOCKED lock task the app physically cannot be left, so the app must stay the focused
+# window after HOME/RECENTS/shade. Poll rather than read once: mCurrentFocus is briefly null
+# during the emulator's GC pauses, which made a single read flaky (passed 6/6 one run, 4/6 the
+# next with identical code). Polling for the kiosk to hold focus is the same contract, not a
+# weaker one — if it had truly escaped it would never come back while still LOCKED.
+still_locked_on_kiosk() { # 0 if the app holds focus within ~8s AND lock task is still LOCKED
+  for _ in $(seq 1 16); do
+    if focus | grep -q "$PKG"; then
+      adb shell dumpsys activity activities | grep -m1 -i mLockTaskModeState | grep -qiE "LOCKED|PINNED" && return 0
+    fi
+    sleep 0.5
+  done
+  return 1
+}
+
+# (3) HOME and RECENTS key events are swallowed (focus stays on our app, lock still LOCKED).
 BEFORE=$(focus); echo "    focus before: $BEFORE"
 adb shell input keyevent KEYCODE_HOME
 adb shell input keyevent KEYCODE_APP_SWITCH
-sleep 2
-AFTER=$(focus); echo "    focus after HOME+RECENTS: $AFTER"
-echo "$AFTER" | grep -q "$PKG"
-check "(3) HOME + RECENTS ignored (still focused on kiosk)" $?
+still_locked_on_kiosk
+RES3=$?
+echo "    focus after HOME+RECENTS: $(focus)"
+check "(3) HOME + RECENTS ignored (still focused on kiosk)" $RES3
 
 # (4) Status bar / notification shade is inaccessible under the lock.
 adb shell cmd statusbar expand-notifications >/dev/null 2>&1 || true
-sleep 1
-SB=$(focus); echo "    focus after shade attempt: $SB"
-echo "$SB" | grep -q "$PKG"
-check "(4) status bar / shade blocked" $?
+still_locked_on_kiosk
+RES4=$?
+echo "    focus after shade attempt: $(focus)"
+check "(4) status bar / shade blocked" $RES4
 
 echo "==================  RELEASE (hospital hand-off safety net)  =================="
 # The app is testOnly=true, so device ownership can always be relinquished with adb —

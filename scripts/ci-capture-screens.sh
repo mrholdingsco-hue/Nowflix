@@ -54,19 +54,22 @@ if ! ls screenshots/*.png >/dev/null 2>&1; then
 fi
 ls -al screenshots || echo "no screenshots dir"
 
-# Report each PNG's dimensions and flag any that came out portrait (h > w) — the whole point of
-# problem #1. `identify` ships with ImageMagick, present on the GitHub ubuntu runner.
-echo "---- screenshot dimensions ----" | tee screenshot-dims.txt
-PORTRAIT_HITS=0
-for f in screenshots/*.png; do
-  [ -f "$f" ] || continue
-  dim=$(identify -format '%wx%h' "$f" 2>/dev/null || echo "?x?")
-  w=${dim%x*}; h=${dim#*x}
-  orient="LANDSCAPE"
-  if [ "$w" != "?" ] && [ "$h" -gt "$w" ]; then orient="PORTRAIT(!)"; PORTRAIT_HITS=$((PORTRAIT_HITS+1)); fi
-  echo "$(basename "$f") ${dim} ${orient}" | tee -a screenshot-dims.txt
-done
-echo "portrait_captures=$PORTRAIT_HITS" | tee -a screenshot-dims.txt
+# Report each PNG's real dimensions and flag any portrait (h > w) capture — the whole point of
+# problem #1. Read the PNG IHDR header with python3 (always on the runner; no ImageMagick/PIL
+# needed — `identify` is not on this emulator-runner step, which is why it printed "?x?" before).
+python3 - <<'PY' 2>&1 | tee screenshot-dims.txt
+import glob, struct
+portrait = 0
+print("---- screenshot dimensions ----")
+for f in sorted(glob.glob("screenshots/*.png")):
+    with open(f, "rb") as fh:
+        w, h = struct.unpack(">II", fh.read(24)[16:24])
+    orient = "LANDSCAPE" if w > h else "PORTRAIT(!)"
+    if h > w:
+        portrait += 1
+    print(f"{f.split('/')[-1]} {w}x{h} {orient}")
+print(f"portrait_captures={portrait}")
+PY
 
 adb logcat -d > instrumented-logcat.txt 2>/dev/null || true
 
