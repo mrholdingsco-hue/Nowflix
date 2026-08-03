@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Merged into the debug build only: enables loopback cleartext for androidTest's MockWebServer. -->
+<!-- Merged into the debug build only: enables loopback cleartext for androidTest's MockWebServer,
+     and declares the landscape-locked host activity the Compose screenshot/flow tests launch. It
+     must live in the app package (this manifest), not androidTest, to be launchable by the
+     instrumentation. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application android:networkSecurityConfig="@xml/network_security_config" />
+    <application android:networkSecurityConfig="@xml/network_security_config">
+        <activity
+            android:name="kr.prism.nowflix.LandscapeActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.Nowflix" />
+    </application>
 </manifest>
