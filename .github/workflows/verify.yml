@@ -309,10 +309,6 @@ jobs:
       - name: Commit + push screenshots to ci-screenshots branch
         run: |
           set -e
-          if [ -z "$(find dl -name '*.png' 2>/dev/null)" ]; then
-            echo "No screenshots were captured — nothing to publish."; exit 0
-          fi
-
           SRC_SHA="${{ github.sha }}"
           STAMP="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           git config user.name  "github-actions[bot]"
@@ -324,17 +320,33 @@ jobs:
 
           mkdir -p screenshots
           # The screenshots artifact carries the numbered screens plus the contact sheet.
-          find dl -name '*.png' | while read -r f; do
+          find dl -name '*.png' 2>/dev/null | while read -r f; do
             b="$(basename "$f")"
             if [ "$b" = "contact-sheet.png" ]; then cp "$f" contact-sheet.png; else cp "$f" "screenshots/$b"; fi
           done
           [ -f dl/kiosk/kiosk-summary.txt ] && cp dl/kiosk/kiosk-summary.txt kiosk-summary.txt || true
-          printf 'source_commit=%s\ncaptured_at=%s\n' "$SRC_SHA" "$STAMP" > meta.txt
 
-          git add -f screenshots/*.png meta.txt
+          PNG_COUNT=$(find screenshots -name '*.png' 2>/dev/null | wc -l | tr -d ' ')
+          printf 'source_commit=%s\ncaptured_at=%s\nscreenshot_count=%s\n' \
+            "$SRC_SHA" "$STAMP" "$PNG_COUNT" > meta.txt
+
+          # Always-on diagnostic manifest so a token-less watcher can see the outcome via `git fetch`.
+          {
+            echo "run_id=${{ github.run_id }}"
+            echo "instrumented_result=${{ needs.instrumented-and-screenshots.result }}"
+            echo "kiosk_result=${{ needs.kiosk-lock.result }}"
+            echo "png_count=$PNG_COUNT"
+            echo "--- downloaded artifact tree ---"
+            find dl -type f 2>/dev/null | sort || echo "(no artifacts downloaded)"
+            echo "--- screenshots staged ---"
+            (cd screenshots && ls -1 *.png 2>/dev/null) || echo "(none)"
+          } > status.txt
+
+          git add -f meta.txt status.txt
+          find screenshots -name '*.png' | head -1 | grep -q . && git add -f screenshots/*.png || true
           [ -f contact-sheet.png ]  && git add -f contact-sheet.png  || true
           [ -f kiosk-summary.txt ]  && git add -f kiosk-summary.txt  || true
 
-          git commit -m "CI screenshots for ${SRC_SHA} @ ${STAMP}"
+          git commit -m "CI screenshots ($PNG_COUNT) for ${SRC_SHA} @ ${STAMP}"
           git push -f origin ci-screenshots
-          echo "Published $(ls -1 screenshots/*.png | wc -l) screenshot(s) to ci-screenshots."
+          echo "Pushed ci-screenshots with $PNG_COUNT screenshot(s)."
