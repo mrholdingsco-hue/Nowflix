@@ -1,6 +1,5 @@
 package kr.prism.nowflix
 
-import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -25,12 +24,17 @@ import org.junit.runner.RunWith
  * The main clock runs with autoAdvance = false because [KioskApp] holds infinite poll loops
  * (the 1-second idle check, the 30-minute config refresh) that would make a full waitForIdle
  * spin forever. Async fixture loads flip autoAdvance on only for the duration of a waitUntil.
+ *
+ * Because the clock is frozen, an interaction's resulting recomposition is not applied until a
+ * frame is produced — so each touch is followed by [settle], which advances a few frames (well
+ * short of the 1-second idle poll) to let the new screen compose before the next assertion.
+ * The assertions themselves are unchanged; only the clock is nudged. Runs on the landscape host.
  */
 @RunWith(AndroidJUnit4::class)
 class KioskFlowTest {
 
     @get:Rule
-    val rule = createAndroidComposeRule<ComponentActivity>()
+    val rule = createAndroidComposeRule<LandscapeActivity>()
 
     private lateinit var backend: FakeBackend
 
@@ -59,6 +63,7 @@ class KioskFlowTest {
     fun cardTap_opensVideoList() {
         // Home renders instantly from the bundled parts; tap the first card.
         rule.onNodeWithText("괜찮Knee TV").performClick()
+        settle()
         // The detail screen always shows "메인으로" (independent of the video load).
         rule.onNodeWithText("메인으로").assertIsDisplayed()
     }
@@ -66,7 +71,9 @@ class KioskFlowTest {
     @Test
     fun videoList_backToMain_returnsHome() {
         rule.onNodeWithText("괜찮Knee TV").performClick()
+        settle()
         rule.onNodeWithText("메인으로").performClick()
+        settle()
         // Back on the home grid: the "TOP 6" chip reflects the six parts.
         rule.onNodeWithText("TOP 6").assertIsDisplayed()
     }
@@ -82,8 +89,12 @@ class KioskFlowTest {
         holdPinHotspot()
         rule.onNodeWithText("관리자 PIN").assertIsDisplayed()
         // Default admin PIN is 000000, so 111111 is always wrong. Five full wrong entries
-        // (6 digits each) trip the lockout.
-        repeat(5 * 6) { rule.onNodeWithText("1").performClick() }
+        // (6 digits each) trip the lockout. A frame per digit lets each keypress register.
+        repeat(5 * 6) {
+            rule.onNodeWithText("1").performClick()
+            rule.mainClock.advanceTimeByFrame()
+        }
+        rule.waitForIdle()
         rule.onNodeWithText("잠시 후 다시 시도해주세요", substring = true).assertIsDisplayed()
     }
 
@@ -91,9 +102,10 @@ class KioskFlowTest {
     fun longPress_topRight_opensPin_overPlayer() {
         // Home -> detail.
         rule.onNodeWithText("괜찮Knee TV").performClick()
-        // Wait for the fixture playlist so "모두 재생" is available.
+        // Wait for the fixture playlist so "모두 재생" is available (this drives frames itself).
         awaitContent { rule.onAllNodesWithText("모두 재생", substring = true).fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithText("모두 재생", substring = true).performClick()
+        settle()
         // Player is up (its up-next column header shows).
         rule.onNodeWithText("다음 동영상").assertIsDisplayed()
         // The hidden gesture must still fire while the player's touch-shield is on screen.
@@ -117,6 +129,16 @@ class KioskFlowTest {
         } catch (_: Throwable) {
             // Best-effort: the open-PIN assertion doesn't depend on the release.
         }
+    }
+
+    /**
+     * Applies pending recompositions after an interaction while the clock is frozen: advances a
+     * few frames (64 ms — far below the 1-second idle poll, so the infinite loops never spin) and
+     * lets layout settle, so the screen the touch opened is composed before the next assertion.
+     */
+    private fun settle() {
+        rule.mainClock.advanceTimeBy(64)
+        rule.waitForIdle()
     }
 
     /** Runs [condition] under autoAdvance so a fixture network load can complete, then restores it. */

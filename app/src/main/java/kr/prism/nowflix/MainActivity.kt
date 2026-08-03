@@ -106,9 +106,13 @@ private const val TOP_BAND_FRACTION = 0.18f
 // Row geometry — also feeds CardMetrics for the width calc.
 private val RowSidePadding = 24.dp
 private val CardGap = 12.dp
-// Thumbnail slot ratio (YouTube playlist thumbs are 16:9). Real images are drawn
-// Fit inside this slot, so their own ratio is preserved once assets land.
-private const val THUMB_ASPECT = 16f / 9f
+// Home cards are vertical posters (client artwork is 4:5). The poster fills the card
+// edge-to-edge via ContentScale.Crop — no letterbox bars, no stretch.
+private const val POSTER_ASPECT = 4f / 5f
+// Height (dp) the row reserves under each poster for the part-name label + its top gap +
+// the LazyRow's own vertical content padding. Feeds the height-capped card-width calc so a
+// full row of tall posters never runs past the bottom of the screen.
+private const val CardTitleReserveDp = 48f
 private val CardCorner = 4.dp
 
 class MainActivity : ComponentActivity() {
@@ -458,29 +462,42 @@ internal fun HomeScreen(
     ) {
         val bandHeight = maxHeight * TOP_BAND_FRACTION
         Column(modifier = Modifier.fillMaxSize()) {
-            TopBand(modifier = Modifier.height(bandHeight))
+            TopBand(bandHeight = bandHeight, modifier = Modifier.height(bandHeight))
             TopContentHeader(count = parts.size)
-            PartsRow(parts = parts, listState = listState, onPartClick = onPartClick)
+            // Give the row the whole remaining height so the card-width math can cap the
+            // poster height to what actually fits below the band + header.
+            PartsRow(
+                parts = parts,
+                listState = listState,
+                onPartClick = onPartClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            )
         }
     }
 }
 
 @Composable
-private fun TopBand(modifier: Modifier = Modifier) {
+private fun TopBand(bandHeight: Dp, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .background(NowflixRed)
-            .padding(horizontal = 32.dp),
+            .padding(horizontal = 40.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        // Transparent-background wordmark, drawn over the red band.
-        Image(
-            painter = painterResource(R.drawable.nowflix_logo),
-            contentDescription = "NOWFLIX",
-            contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxHeight(0.5f),
+        // Wordmark drawn as text — no PNG, so no transparent-edge rectangle bleeds through the
+        // red band, and it stays crisp when parts are added or the resolution changes. Bold wide-
+        // tracked white sans on the solid #E50914 band, sized as a fraction of the band height so
+        // it keeps generous margins above/below rather than filling the band.
+        Text(
+            text = "NOWFLIX",
+            color = Color.White,
+            fontSize = (bandHeight.value * 0.34f).sp,
+            fontWeight = FontWeight.Black,
+            letterSpacing = (bandHeight.value * 0.03f).sp,
         )
         Image(
             painter = painterResource(R.drawable.nowflix_qr),
@@ -526,19 +543,28 @@ private fun TopContentHeader(count: Int) {
 }
 
 @Composable
-private fun PartsRow(parts: List<Part>, listState: LazyListState, onPartClick: (Part) -> Unit) {
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+private fun PartsRow(
+    parts: List<Part>,
+    listState: LazyListState,
+    onPartClick: (Part) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(modifier = modifier) {
         val cardWidthDp = CardMetrics.cardWidthDp(
             rowWidthDp = maxWidth.value,
             itemCount = parts.size,
             sidePaddingDp = RowSidePadding.value,
             gapDp = CardGap.value,
+            availableHeightDp = maxHeight.value,
+            titleReserveDp = CardTitleReserveDp,
         ).dp
         LazyRow(
             state = listState,
             contentPadding = PaddingValues(horizontal = RowSidePadding, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(CardGap),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.CenterStart),
         ) {
             items(parts, key = { it.id }) { part ->
                 PartCard(part = part, width = cardWidthDp, onClick = { onPartClick(part) })
@@ -573,7 +599,7 @@ private fun PartCard(part: Part, width: Dp, onClick: () -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(THUMB_ASPECT)
+                .aspectRatio(POSTER_ASPECT)
                 .clip(RoundedCornerShape(CardCorner))
                 .background(PlaceholderTile)
                 .border(2.dp, borderColor, RoundedCornerShape(CardCorner)),
@@ -616,7 +642,9 @@ private fun Thumbnail(part: Part) {
                 .crossfade(false)
                 .build(),
             contentDescription = part.title,
-            contentScale = ContentScale.Fit,
+            // Crop, not Fit: the poster fills the whole card with no letterbox bars. Any
+            // ratio mismatch is trimmed rather than boxed or stretched.
+            contentScale = ContentScale.Crop,
             placeholder = drawable,
             error = drawable,
             fallback = drawable,
@@ -626,7 +654,7 @@ private fun Thumbnail(part: Part) {
         drawable != null -> Image(
             painter = drawable,
             contentDescription = part.title,
-            contentScale = ContentScale.Fit,
+            contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
         )
 

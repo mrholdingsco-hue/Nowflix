@@ -14,9 +14,13 @@ echo "emulator script started $(date -u +%H:%M:%S)" | tee booted.txt
 # Root adb so we can read the app's private files dir (see ScreenshotTest.capture()).
 adb root && adb wait-for-device && sleep 3
 
-# Tablet lobby orientation: force landscape so the captured screens match the field.
+# Tablet lobby orientation. The real guarantee is that the screenshot host activity is
+# android:screenOrientation="landscape" (androidTest/AndroidManifest.xml -> LandscapeActivity),
+# so Android renders it landscape whichever way the emulator booted. We still pin the device to
+# its natural (landscape) rotation as belt-and-suspenders; user_rotation 1 = 90° = PORTRAIT on a
+# landscape-natural tablet, which is what produced the earlier 1800×2400 portrait captures.
 adb shell settings put system accelerometer_rotation 0
-adb shell settings put system user_rotation 1
+adb shell settings put system user_rotation 0
 
 PKG=kr.prism.nowflix
 RUNNER="$PKG.test/androidx.test.runner.AndroidJUnitRunner"
@@ -49,6 +53,21 @@ if ! ls screenshots/*.png >/dev/null 2>&1; then
   cat device-find.txt
 fi
 ls -al screenshots || echo "no screenshots dir"
+
+# Report each PNG's dimensions and flag any that came out portrait (h > w) — the whole point of
+# problem #1. `identify` ships with ImageMagick, present on the GitHub ubuntu runner.
+echo "---- screenshot dimensions ----" | tee screenshot-dims.txt
+PORTRAIT_HITS=0
+for f in screenshots/*.png; do
+  [ -f "$f" ] || continue
+  dim=$(identify -format '%wx%h' "$f" 2>/dev/null || echo "?x?")
+  w=${dim%x*}; h=${dim#*x}
+  orient="LANDSCAPE"
+  if [ "$w" != "?" ] && [ "$h" -gt "$w" ]; then orient="PORTRAIT(!)"; PORTRAIT_HITS=$((PORTRAIT_HITS+1)); fi
+  echo "$(basename "$f") ${dim} ${orient}" | tee -a screenshot-dims.txt
+done
+echo "portrait_captures=$PORTRAIT_HITS" | tee -a screenshot-dims.txt
+
 adb logcat -d > instrumented-logcat.txt 2>/dev/null || true
 
 # 3) Full behavioural suite (best-effort; capped). This reinstalls/uninstalls the app itself, which

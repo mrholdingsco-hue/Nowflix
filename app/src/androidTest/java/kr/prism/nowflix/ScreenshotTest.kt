@@ -2,7 +2,6 @@ package kr.prism.nowflix
 
 import android.graphics.Bitmap
 import android.os.SystemClock
-import androidx.activity.ComponentActivity
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -46,7 +45,7 @@ import java.io.File
 class ScreenshotTest {
 
     @get:Rule
-    val rule = createAndroidComposeRule<ComponentActivity>()
+    val rule = createAndroidComposeRule<LandscapeActivity>()
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -156,8 +155,10 @@ class ScreenshotTest {
             MaterialTheme {
                 AdminScreen(
                     lockMode = KioskLockMode.FULL_LOCK,
-                    appVersion = "0.1.0",
-                    lastRemoteAtMillis = 1_722_600_000_000L,
+                    appVersion = BuildConfig.VERSION_NAME,
+                    // No remote fetch happens in this isolated screen render, so the honest value
+                    // is null -> "없음". (The old hard-coded 2024 millis is what showed the wrong year.)
+                    lastRemoteAtMillis = null,
                     returnSeconds = 120,
                     partCount = 6,
                     adminWebUrl = BuildConfig.ADMIN_WEB_URL,

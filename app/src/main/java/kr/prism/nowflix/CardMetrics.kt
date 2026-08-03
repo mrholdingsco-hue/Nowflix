@@ -18,18 +18,34 @@ object CardMetrics {
      * of [rowWidthDp] (minus edge padding and inter-card gaps). With fewer parts
      * than [visibleColumns] the cards grow to fill the row; with more, width is
      * pinned to the [visibleColumns] fit and the surplus scrolls.
+     *
+     * The cards are now vertical posters (see [POSTER_HEIGHT_RATIO]), so a full row
+     * of them can be taller than the space the row is given. When [availableHeightDp]
+     * is set, the width is additionally capped so that the whole card — poster plus the
+     * part-name label reserved by [titleReserveDp] — fits the height. The smaller of the
+     * two constraints wins, so six posters always fit on one screen without clipping.
      */
     fun cardWidthDp(
         rowWidthDp: Float,
         itemCount: Int,
         sidePaddingDp: Float,
         gapDp: Float,
+        availableHeightDp: Float = Float.MAX_VALUE,
+        titleReserveDp: Float = 0f,
+        posterHeightRatio: Float = POSTER_HEIGHT_RATIO,
         visibleColumns: Int = VISIBLE_COLUMNS,
     ): Float {
         require(itemCount > 0) { "itemCount must be > 0" }
         require(rowWidthDp > 0f) { "rowWidthDp must be > 0" }
         val cols = minOf(itemCount, visibleColumns)
         val usable = rowWidthDp - sidePaddingDp * 2f - gapDp * (cols - 1)
-        return usable / cols
+        val byWidth = usable / cols
+        if (availableHeightDp == Float.MAX_VALUE) return byWidth
+        // card height = posterWidth * ratio + titleReserve  <=  availableHeight
+        val byHeight = ((availableHeightDp - titleReserveDp).coerceAtLeast(0f)) / posterHeightRatio
+        return minOf(byWidth, byHeight)
     }
+
+    /** Poster artwork is a vertical 4:5 (width:height), i.e. height = 1.25 × width. */
+    const val POSTER_HEIGHT_RATIO = 5f / 4f
 }

@@ -51,6 +51,9 @@ import java.time.OffsetDateTime
 // YouTube dark theme. Flat #0F0F0F canvas, no cards, no dividers.
 private val Background = Color(0xFF0F0F0F)
 private val Skeleton = Color(0xFF222222)
+// Left-panel part poster is the client's vertical 4:5 artwork — shown whole, not cropped
+// mid-image the way the old 16:9 slot did. (The video-row thumbs stay 16:9 via THUMB_ASPECT.)
+private const val POSTER_ASPECT = 4f / 5f
 
 @Composable
 fun PartDetailScreen(
@@ -237,7 +240,7 @@ private fun PartPoster(part: Part) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(THUMB_ASPECT)
+            .aspectRatio(POSTER_ASPECT)
             .clip(RoundedCornerShape(8.dp))
             .background(PosterTile),
     ) {

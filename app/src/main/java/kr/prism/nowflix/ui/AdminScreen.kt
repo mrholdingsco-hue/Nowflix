@@ -236,7 +236,9 @@ private fun lockModeLabel(mode: KioskLockMode): String = when (mode) {
 }
 
 private fun formatRemoteTime(millis: Long?): String {
-    if (millis == null) return "아직 수신 없음"
+    // No remote settings have landed yet (fetch never succeeded) — say so plainly instead of
+    // showing a stand-in date. A real receipt is stamped from the device clock in KioskApp.
+    if (millis == null) return "없음"
     val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.KOREA)
     return fmt.format(Date(millis))
 }

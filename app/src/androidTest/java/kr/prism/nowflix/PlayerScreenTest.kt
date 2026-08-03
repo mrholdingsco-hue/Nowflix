@@ -1,6 +1,5 @@
 package kr.prism.nowflix
 
-import androidx.activity.ComponentActivity
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
@@ -32,7 +31,7 @@ import org.junit.runner.RunWith
 class PlayerScreenTest {
 
     @get:Rule
-    val rule = createAndroidComposeRule<ComponentActivity>()
+    val rule = createAndroidComposeRule<LandscapeActivity>()
 
     @Test
     fun touchShield_tap_revealsControls_andStaysInPlayer() {
@@ -49,6 +48,9 @@ class PlayerScreenTest {
 
         // Tap the video surface: only the shield should receive it.
         rule.onRoot().performTouchInput { click(Offset(width * 0.3f, height * 0.25f)) }
+        // Clock is frozen, so advance a few frames to let the shield's gesture complete and the
+        // revealed controls recompose (still well under the 3-second re-hide timeout).
+        rule.mainClock.advanceTimeBy(64)
         rule.waitForIdle()
 
         // The shield revealed our controls again, and we never left the player.

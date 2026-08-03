@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- Landscape-locked host for the Compose screenshot/flow tests so captures are always
+             taken in the tablet's field orientation (2560×1600-class), never portrait. The
+             Fullscreen theme hides the system bars, matching the real kiosk window. -->
+        <activity
+            android:name="kr.prism.nowflix.LandscapeActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen" />
+    </application>
+</manifest>
