@@ -1,0 +1,8 @@
+[
+  { "id": "knee",     "title": "괜찮Knee TV", "thumbnail": "part_01_knee",     "playlistId": "PLfxolKs8oDR66iswGEXMQz10w1seo8O80" },
+  { "id": "chuk",     "title": "척척박사 TV",  "thumbnail": "part_02_chuk",     "playlistId": "PLfxolKs8oDR7o8U1FaBEa60UNFGwEsopE" },
+  { "id": "son",      "title": "손봐줘 TV",   "thumbnail": "part_03_son",      "playlistId": "PLfxolKs8oDR4vTPuHa9Bp5CV22IHCC7H7" },
+  { "id": "hip",      "title": "Hip한 NOW",  "thumbnail": "part_04_hip",      "playlistId": "PLfxolKs8oDR6LzV8jvySqtmcNfaBaA9pN" },
+  { "id": "shoulder", "title": "어깨의 정석",  "thumbnail": "part_05_shoulder", "playlistId": "PLfxolKs8oDR6a7TCf6Ok1ilR8I5ZqkdC1" },
+  { "id": "jokjipge", "title": "족집게 TV",   "thumbnail": "part_06_jokjipge", "playlistId": "PLfxolKs8oDR4x2gGkTk29RpJ7aysqo0J3" }
+]
