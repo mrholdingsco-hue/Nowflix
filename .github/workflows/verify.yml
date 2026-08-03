@@ -93,7 +93,14 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: |
+            set -x
             set +e
+            echo "emulator script started $(date -u +%H:%M:%S)" | tee booted.txt
+
+            # Root adb so we can read the app's Android/data (scoped storage blocks the shell user
+            # on API 30+, which is why earlier runs pulled zero screenshots). google_apis is userdebug.
+            adb root && adb wait-for-device && sleep 3
+
             # Tablet lobby orientation: force landscape so the captured screens match the field.
             adb shell settings put system accelerometer_rotation 0
             adb shell settings put system user_rotation 1
@@ -105,15 +112,19 @@ jobs:
               --stacktrace 2>&1 | tee screenshot-capture.log
             SHOT_EXIT=${PIPESTATUS[0]}
 
-            # Record exactly what the app wrote to the device, then pull it.
+            # Record exactly what the app wrote to the device, then pull it (two known paths).
             adb shell ls -la "$APP_EXTERNAL_DIR/screenshots" > device-screenshots-ls.txt 2>&1 || true
             echo "---- device screenshots dir ----"; cat device-screenshots-ls.txt
             adb pull "$APP_EXTERNAL_DIR/screenshots" ./ 2>/dev/null || true
+            if ! ls screenshots/*.png >/dev/null 2>&1; then
+              adb pull "/data/media/0/Android/data/kr.prism.nowflix/files/screenshots" ./ 2>/dev/null || true
+            fi
             ls -al screenshots || echo "no screenshots dir"
             adb logcat -d > instrumented-logcat.txt 2>/dev/null || true
 
-            # 2) Full behavioural suite afterwards (allowed to fail; its report is uploaded).
-            ./gradlew connectedDebugAndroidTest --stacktrace 2>&1 | tee connected.log
+            # 2) Full behavioural suite afterwards (allowed to fail; capped so it can never eat the
+            #    whole 60-min job budget and starve the always() diagnostics upload).
+            timeout 1500 ./gradlew connectedDebugAndroidTest --stacktrace 2>&1 | tee connected.log
             BEHAVIOR_EXIT=${PIPESTATUS[0]}
 
             echo "SHOT_EXIT=$SHOT_EXIT BEHAVIOR_EXIT=$BEHAVIOR_EXIT"

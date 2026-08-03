@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug builds only. androidTest points the data layer at an in-process MockWebServer
+  (see TestSupport.kt), which serves cleartext HTTP on the loopback. API 28+ blocks
+  cleartext by default, so permit it for the loopback hosts only. Release builds keep
+  the platform default (cleartext denied) and continue talking to Supabase/YouTube over HTTPS.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>
