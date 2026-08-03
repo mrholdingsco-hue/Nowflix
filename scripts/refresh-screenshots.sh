@@ -43,6 +43,7 @@ fi
 
 echo "==> Deploying to nowflix-ci-view (icn1)"
 cd "$VIEWER"
+vercel project add nowflix-ci-view --token "$VERCEL_TOKEN" --scope "$SCOPE" >/dev/null 2>&1 || true
 vercel link --yes --project nowflix-ci-view --token "$VERCEL_TOKEN" --scope "$SCOPE" >/dev/null
 vercel deploy --prod --yes --token "$VERCEL_TOKEN" --scope "$SCOPE"
 
