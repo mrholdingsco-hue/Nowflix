@@ -7,13 +7,16 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
-// YouTube Data API key — read from local.properties (gitignored) at build time and
-// injected via BuildConfig. Never checked into source, parts.json, or commits.
-// Blank when absent: the app still builds; network calls just fail into cache fallback.
-val youtubeApiKey: String = Properties().apply {
+// Secrets read from local.properties (gitignored) at build time and injected via
+// BuildConfig. Never checked into source, parts.json, or commits. Blank when absent:
+// the app still builds; the Supabase fetch just fails silently into cache/asset fallback.
+val localProps = Properties().apply {
     val f = rootProject.file("local.properties")
     if (f.exists()) f.inputStream().use { load(it) }
-}.getProperty("YOUTUBE_API_KEY").orEmpty().trim()
+}
+val youtubeApiKey: String = localProps.getProperty("YOUTUBE_API_KEY").orEmpty().trim()
+val supabaseUrl: String = localProps.getProperty("SUPABASE_URL").orEmpty().trim()
+val supabaseAnonKey: String = localProps.getProperty("SUPABASE_ANON_KEY").orEmpty().trim()
 
 android {
     namespace = "kr.prism.nowflix"
@@ -28,6 +31,8 @@ android {
         versionName = "0.1.0"
 
         buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseAnonKey\"")
     }
 
     buildTypes {

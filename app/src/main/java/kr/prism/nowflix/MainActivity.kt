@@ -33,6 +33,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -54,9 +55,19 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import coil.compose.AsyncImage
+import coil.request.CachePolicy
+import coil.request.ImageRequest
+import kotlinx.coroutines.delay
+import kr.prism.nowflix.data.FileConfigCacheStore
 import kr.prism.nowflix.data.FileMetaCacheStore
+import kr.prism.nowflix.data.KioskConfig
+import kr.prism.nowflix.data.KioskConfigRepository
+import kr.prism.nowflix.data.KioskSettings
 import kr.prism.nowflix.data.PlaylistMetaRepository
+import kr.prism.nowflix.data.RetrofitSupabaseSource
 import kr.prism.nowflix.data.RetrofitYoutubeSource
+import kr.prism.nowflix.data.SupabaseService
 import kr.prism.nowflix.data.Video
 import kr.prism.nowflix.data.YoutubeService
 import kr.prism.nowflix.ui.PartDetailScreen
@@ -90,6 +101,8 @@ class MainActivity : ComponentActivity() {
                 var selected by remember { mutableStateOf<Part?>(null) }
                 var playback by remember { mutableStateOf<Playback?>(null) }
                 val descriptions = rememberDescriptions()
+                // Supabase-backed config (parts + settings) with silent cache/asset fallback.
+                val config = rememberKioskConfig()
 
                 val session = playback
                 val part = selected
@@ -108,7 +121,7 @@ class MainActivity : ComponentActivity() {
                             playback = Playback(videos, startIndex)
                         },
                     )
-                    else -> HomeScreen(onPartClick = { selected = it })
+                    else -> HomeScreen(parts = config.parts, onPartClick = { selected = it })
                 }
             }
         }
@@ -149,11 +162,34 @@ private fun rememberDescriptions(): Map<String, String> {
     return state.value
 }
 
+/**
+ * Kiosk config with the three-stage fallback (Supabase -> cache -> bundled assets).
+ * Renders instantly from bundled assets, then loads once at start and re-fetches every
+ * 30 minutes. A failed fetch changes nothing on screen — it silently keeps prior values.
+ */
 @Composable
-private fun HomeScreen(onPartClick: (Part) -> Unit) {
+private fun rememberKioskConfig(): KioskConfig {
     val context = LocalContext.current
-    val parts = remember { PartsRepository.load(context) }
+    val bundled = remember { PartsRepository.load(context) }
+    var config by remember { mutableStateOf(KioskConfig(bundled, KioskSettings())) }
+    LaunchedEffect(Unit) {
+        val repo = KioskConfigRepository(
+            source = RetrofitSupabaseSource(
+                SupabaseService.create(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_ANON_KEY),
+            ),
+            cache = FileConfigCacheStore(context.filesDir),
+            bundled = { bundled },
+        )
+        while (true) {
+            config = repo.load()
+            delay(30 * 60 * 1000L) // once at start, then every 30 minutes
+        }
+    }
+    return config
+}
 
+@Composable
+private fun HomeScreen(parts: List<Part>, onPartClick: (Part) -> Unit) {
     // Kiosk main screen swallows the back gesture — it must never exit the app.
     BackHandler(enabled = true) { /* no-op */ }
 
@@ -303,20 +339,39 @@ private fun PartCard(part: Part, width: Dp, onClick: () -> Unit) {
 @Composable
 private fun Thumbnail(part: Part) {
     val context = LocalContext.current
-    // Resolve the drawable by name at runtime — a missing image just shows the
+    // Resolve the bundled drawable by name at runtime — a missing image just shows the
     // placeholder tile, so parts can be added before their artwork exists.
     val resId = remember(part.thumbnail) {
-        context.resources.getIdentifier(part.thumbnail, "drawable", context.packageName)
+        if (part.thumbnail.isBlank()) 0
+        else context.resources.getIdentifier(part.thumbnail, "drawable", context.packageName)
     }
-    if (resId != 0) {
-        Image(
-            painter = painterResource(id = resId),
+    val drawable = if (resId != 0) painterResource(id = resId) else null
+
+    when {
+        // Remote thumbnail (Coil, disk cache on). Any load failure falls back to the
+        // bundled drawable; a null fallback just leaves the placeholder tile showing.
+        part.thumbnailUrl.isNotBlank() -> AsyncImage(
+            model = ImageRequest.Builder(context)
+                .data(part.thumbnailUrl)
+                .diskCachePolicy(CachePolicy.ENABLED)
+                .crossfade(false)
+                .build(),
+            contentDescription = part.title,
+            contentScale = ContentScale.Fit,
+            placeholder = drawable,
+            error = drawable,
+            fallback = drawable,
+            modifier = Modifier.fillMaxSize(),
+        )
+
+        drawable != null -> Image(
+            painter = drawable,
             contentDescription = part.title,
             contentScale = ContentScale.Fit,
             modifier = Modifier.fillMaxSize(),
         )
-    } else {
-        Text(
+
+        else -> Text(
             text = part.title,
             color = Color(0xFF6B6B70),
             fontSize = 13.sp,

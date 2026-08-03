@@ -16,6 +16,8 @@ data class Part(
     val playlistId: String,
     // Optional playlist blurb shown (2 lines, ellipsized) in the detail left panel.
     val description: String = "",
+    // Remote thumbnail URL (from Supabase). Blank -> the app uses [thumbnail]'s drawable.
+    val thumbnailUrl: String = "",
 )
 
 object PartsRepository {
