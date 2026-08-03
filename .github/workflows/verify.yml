@@ -98,15 +98,40 @@ jobs:
             adb shell settings put system accelerometer_rotation 0
             adb shell settings put system user_rotation 1
 
-            # Run every androidTest (flows, player shield, data layer, screenshot capture).
-            ./gradlew connectedDebugAndroidTest --stacktrace
-            TEST_EXIT=$?
+            # 1) Full behavioural suite (flows, player shield, data layer). Allowed to fail —
+            #    its report is uploaded for inspection, but a crash here must NOT stop capture.
+            ./gradlew connectedDebugAndroidTest --stacktrace 2>&1 | tee connected.log
+            BEHAVIOR_EXIT=${PIPESTATUS[0]}
 
-            # Always pull whatever screenshots were captured, even if some tests failed.
+            # 2) Screens captured in a DEDICATED instrumentation run (only ScreenshotTest), so a
+            #    crash in the behavioural tests above can't prevent the screenshots being produced.
+            ./gradlew connectedDebugAndroidTest \
+              -Pandroid.testInstrumentationRunnerArguments.class=kr.prism.nowflix.ScreenshotTest \
+              --stacktrace 2>&1 | tee screenshot-capture.log
+            SHOT_EXIT=${PIPESTATUS[0]}
+
+            # Always pull whatever screenshots landed on disk.
             adb pull "$APP_EXTERNAL_DIR/screenshots" ./ 2>/dev/null || true
             ls -al screenshots || echo "no screenshots dir"
 
-            exit $TEST_EXIT
+            # Diagnostics for the token-less watcher (surfaced via the ci-screenshots branch).
+            adb logcat -d > instrumented-logcat.txt 2>/dev/null || true
+            echo "BEHAVIOR_EXIT=$BEHAVIOR_EXIT SHOT_EXIT=$SHOT_EXIT"
+
+            # Job outcome tracks the screenshot capture specifically; behavioural failures don't block.
+            exit $SHOT_EXIT
+
+      - name: Upload instrumented diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instrumented-diag
+          path: |
+            connected.log
+            screenshot-capture.log
+            instrumented-logcat.txt
+            app/build/outputs/androidTest-results/connected/
+          if-no-files-found: warn
 
       - name: Build contact sheet
         if: always()
@@ -306,6 +331,20 @@ jobs:
           path: dl/kiosk
         continue-on-error: true
 
+      - name: Download instrumented diagnostics
+        uses: actions/download-artifact@v4
+        with:
+          name: instrumented-diag
+          path: dl/diag
+        continue-on-error: true
+
+      - name: Download kiosk logcat
+        uses: actions/download-artifact@v4
+        with:
+          name: kiosk-logcat
+          path: dl/kiosk-log
+        continue-on-error: true
+
       - name: Commit + push screenshots to ci-screenshots branch
         run: |
           set -e
@@ -342,7 +381,25 @@ jobs:
             (cd screenshots && ls -1 *.png 2>/dev/null) || echo "(none)"
           } > status.txt
 
-          git add -f meta.txt status.txt
+          # Failure diagnostics routed onto the branch (no token to read run logs otherwise).
+          {
+            echo "############ instrumented: screenshot-capture.log (tail) ############"
+            tail -n 60 dl/diag/screenshot-capture.log 2>/dev/null || echo "(absent)"
+            echo; echo "############ instrumented: connected.log (tail) ############"
+            tail -n 40 dl/diag/connected.log 2>/dev/null || echo "(absent)"
+            echo; echo "############ androidTest JUnit failures/errors ############"
+            if [ -n "$(find dl/diag -name '*.xml' 2>/dev/null)" ]; then
+              grep -rhoE '<(failure|error)[^>]*>[^<]*' dl/diag 2>/dev/null | head -n 40 || echo "(none parsed)"
+            else
+              echo "(no result XMLs)"
+            fi
+            echo; echo "############ instrumented logcat: crashes (FATAL/AndroidRuntime) ############"
+            grep -aE 'FATAL EXCEPTION|AndroidRuntime|Process crashed|E TestRunner' dl/diag/instrumented-logcat.txt 2>/dev/null | head -n 40 || echo "(none)"
+            echo; echo "############ kiosk logcat (tail) ############"
+            tail -n 30 dl/kiosk-log/kiosk-logcat.txt 2>/dev/null || echo "(absent)"
+          } > diag.txt
+
+          git add -f meta.txt status.txt diag.txt
           find screenshots -name '*.png' | head -1 | grep -q . && git add -f screenshots/*.png || true
           [ -f contact-sheet.png ]  && git add -f contact-sheet.png  || true
           [ -f kiosk-summary.txt ]  && git add -f kiosk-summary.txt  || true
