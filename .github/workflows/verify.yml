@@ -98,26 +98,25 @@ jobs:
             adb shell settings put system accelerometer_rotation 0
             adb shell settings put system user_rotation 1
 
-            # 1) Full behavioural suite (flows, player shield, data layer). Allowed to fail —
-            #    its report is uploaded for inspection, but a crash here must NOT stop capture.
-            ./gradlew connectedDebugAndroidTest --stacktrace 2>&1 | tee connected.log
-            BEHAVIOR_EXIT=${PIPESTATUS[0]}
-
-            # 2) Screens captured in a DEDICATED instrumentation run (only ScreenshotTest), so a
-            #    crash in the behavioural tests above can't prevent the screenshots being produced.
+            # 1) DEDICATED screenshot capture FIRST + pull immediately, so nothing else (a long or
+            #    failing behavioural run, a timeout, a wedged daemon) can block or wipe the screens.
             ./gradlew connectedDebugAndroidTest \
               -Pandroid.testInstrumentationRunnerArguments.class=kr.prism.nowflix.ScreenshotTest \
               --stacktrace 2>&1 | tee screenshot-capture.log
             SHOT_EXIT=${PIPESTATUS[0]}
 
-            # Always pull whatever screenshots landed on disk.
+            # Record exactly what the app wrote to the device, then pull it.
+            adb shell ls -la "$APP_EXTERNAL_DIR/screenshots" > device-screenshots-ls.txt 2>&1 || true
+            echo "---- device screenshots dir ----"; cat device-screenshots-ls.txt
             adb pull "$APP_EXTERNAL_DIR/screenshots" ./ 2>/dev/null || true
             ls -al screenshots || echo "no screenshots dir"
-
-            # Diagnostics for the token-less watcher (surfaced via the ci-screenshots branch).
             adb logcat -d > instrumented-logcat.txt 2>/dev/null || true
-            echo "BEHAVIOR_EXIT=$BEHAVIOR_EXIT SHOT_EXIT=$SHOT_EXIT"
 
+            # 2) Full behavioural suite afterwards (allowed to fail; its report is uploaded).
+            ./gradlew connectedDebugAndroidTest --stacktrace 2>&1 | tee connected.log
+            BEHAVIOR_EXIT=${PIPESTATUS[0]}
+
+            echo "SHOT_EXIT=$SHOT_EXIT BEHAVIOR_EXIT=$BEHAVIOR_EXIT"
             # Job outcome tracks the screenshot capture specifically; behavioural failures don't block.
             exit $SHOT_EXIT
 
@@ -129,6 +128,7 @@ jobs:
           path: |
             connected.log
             screenshot-capture.log
+            device-screenshots-ls.txt
             instrumented-logcat.txt
             app/build/outputs/androidTest-results/connected/
           if-no-files-found: warn
@@ -383,23 +383,32 @@ jobs:
 
           # Failure diagnostics routed onto the branch (no token to read run logs otherwise).
           {
-            echo "############ instrumented: screenshot-capture.log (tail) ############"
-            tail -n 60 dl/diag/screenshot-capture.log 2>/dev/null || echo "(absent)"
-            echo; echo "############ instrumented: connected.log (tail) ############"
-            tail -n 40 dl/diag/connected.log 2>/dev/null || echo "(absent)"
+            echo "############ device screenshots dir (adb ls) ############"
+            cat dl/diag/device-screenshots-ls.txt 2>/dev/null || echo "(absent)"
+            echo; echo "############ screenshot-capture.log (FULL) ############"
+            cat dl/diag/screenshot-capture.log 2>/dev/null || echo "(absent — capture run never produced a log)"
             echo; echo "############ androidTest JUnit failures/errors ############"
             if [ -n "$(find dl/diag -name '*.xml' 2>/dev/null)" ]; then
-              grep -rhoE '<(failure|error)[^>]*>[^<]*' dl/diag 2>/dev/null | head -n 40 || echo "(none parsed)"
+              grep -rhoE '<(failure|error)[^>]*>[^<]*' dl/diag 2>/dev/null | head -n 60 || echo "(none parsed)"
             else
               echo "(no result XMLs)"
             fi
             echo; echo "############ instrumented logcat: crashes (FATAL/AndroidRuntime) ############"
-            grep -aE 'FATAL EXCEPTION|AndroidRuntime|Process crashed|E TestRunner' dl/diag/instrumented-logcat.txt 2>/dev/null | head -n 40 || echo "(none)"
+            grep -aE 'FATAL EXCEPTION|AndroidRuntime|Process crashed|E TestRunner|Compose' dl/diag/instrumented-logcat.txt 2>/dev/null | head -n 60 || echo "(none)"
+            echo; echo "############ connected.log (tail) ############"
+            tail -n 25 dl/diag/connected.log 2>/dev/null || echo "(absent)"
             echo; echo "############ kiosk logcat (tail) ############"
-            tail -n 30 dl/kiosk-log/kiosk-logcat.txt 2>/dev/null || echo "(absent)"
+            tail -n 25 dl/kiosk-log/kiosk-logcat.txt 2>/dev/null || echo "(absent)"
           } > diag.txt
 
+          # Raw JUnit XML(s) onto the branch too, for full per-test detail (names may contain spaces).
+          mkdir -p results-xml
+          find dl/diag -name '*.xml' 2>/dev/null | while read -r x; do
+            cp "$x" "results-xml/$(basename "$x" | tr ' ' '_')"
+          done
+
           git add -f meta.txt status.txt diag.txt
+          [ -n "$(ls results-xml 2>/dev/null)" ] && git add -f results-xml/* || true
           find screenshots -name '*.png' | head -1 | grep -q . && git add -f screenshots/*.png || true
           [ -f contact-sheet.png ]  && git add -f contact-sheet.png  || true
           [ -f kiosk-summary.txt ]  && git add -f kiosk-summary.txt  || true
