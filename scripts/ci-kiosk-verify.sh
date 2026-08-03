@@ -59,15 +59,20 @@ echo "    lockTaskModeState: $LTS"
 echo "$LTS" | grep -qiE "LOCKED|PINNED"
 check "(2) lock task active" $?
 
-# Under a LOCKED lock task the app physically cannot be left, so the app must stay the focused
-# window after HOME/RECENTS/shade. Poll rather than read once: mCurrentFocus is briefly null
-# during the emulator's GC pauses, which made a single read flaky (passed 6/6 one run, 4/6 the
-# next with identical code). Polling for the kiosk to hold focus is the same contract, not a
-# weaker one — if it had truly escaped it would never come back while still LOCKED.
-still_locked_on_kiosk() { # 0 if the app holds focus within ~8s AND lock task is still LOCKED
+# Under a LOCKED lock task the app physically cannot be left, so after HOME/RECENTS/shade our
+# activity must stay RESUMED and the lock must stay LOCKED. We check mResumedActivity, NOT
+# mCurrentFocus: the diagnostics showed the emulator's own launcher (NexusLauncher) intermittently
+# ANRs on cold boot, leaving the default display's mCurrentFocus null / on the ANR dialog — yet
+# mResumedActivity stays kr.prism.nowflix/.MainActivity with mLockTaskModeState=LOCKED, i.e. the
+# kiosk correctly held. mResumedActivity is the authoritative foreground signal (a real HOME escape
+# would flip it to the launcher), so this is a stronger contract than parsing mCurrentFocus, not a
+# weaker one. Poll ~8s to ride out transitions.
+still_locked_on_kiosk() { # 0 if OUR activity is resumed AND lock task is LOCKED, within ~8s
   for _ in $(seq 1 16); do
-    if focus | grep -q "$PKG"; then
-      adb shell dumpsys activity activities | grep -m1 -i mLockTaskModeState | grep -qiE "LOCKED|PINNED" && return 0
+    ACT=$(adb shell dumpsys activity activities 2>/dev/null)
+    if echo "$ACT" | grep -m1 -i 'mResumedActivity' | grep -q "$PKG" && \
+       echo "$ACT" | grep -m1 -i 'mLockTaskModeState' | grep -qiE "LOCKED|PINNED"; then
+      return 0
     fi
     sleep 0.5
   done

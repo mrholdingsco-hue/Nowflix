@@ -1,5 +1,16 @@
 # NOWFLIX Kiosk — Progress
 
+## STEP 9-C (2026-08-03) — 스크린샷 문제 수정 + 키오스크 검증 복구 — DONE ✅
+- **촬영 해상도 (문제1)**: 세로 1800×2400 → **가로 2560×1688** (PNG IHDR 실측, portrait_captures=0). 원인: 테스트 호스트가 맨 `ComponentActivity`라 에뮬 회전을 따라감(가로-네이티브 태블릿에서 `user_rotation 1`=90°=세로). 수정: `android:screenOrientation="landscape"` 잠금 호스트 `LandscapeActivity`를 **debug 소스셋**(앱 패키지=계측 타깃 프로세스; androidTest에 두면 "Intent resolved to different process"로 못 띄움)에 두고 스크린샷/플로우 테스트가 사용. `identify`는 이 러너에 없어 python3로 PNG 헤더 직접 측정.
+- **카드 비율 (문제2)**: 4:5 세로 포스터가 16:9 카드에 Fit돼 좌우 검은 여백 → **카드 4:5 + ContentScale.Crop**(꽉 채움, 늘림/여백 없음). `CardMetrics`가 6열 폭을 화면 높이(포스터+파트명)로 캡 → 6개 한 줄, 높이 안 넘음. 8개는 가로 스크롤 유지. (+CardMetrics 테스트 2.)
+- **로고 (문제3)**: `nowflix_logo.png` 투명 경계 사각형 → 밴드에 **"NOWFLIX" 텍스트**(FontWeight.Black, 넓은 자간, 흰색, #E50914 단색, 밴드 높이 비례 크기·충분한 여백). 해상도/파트 변경에 안 깨짐.
+- **상세 포스터 (문제4)**: 좌측 패널이 4:5를 16:9 Crop해 하단 잘림 → **4:5로 전체 표시**. (영상 행 썸네일은 실제 16:9라 그대로.)
+- **관리자 날짜 (문제5)**: 스크린샷의 하드코딩 `1_722_600_000_000L`(2024-08-02) 제거 → `null`이라 **"없음"** 표시(실제 앱은 원격 수신 성공 시 기기 시계로 stamp). null 라벨도 "아직 수신 없음"→"없음". 앱 버전 0.1.0은 지시대로 유지·보고만.
+- **키오스크 잠금 (문제6)**: API34 부팅 실패로 빈 값 → **API30 google_apis pixel_c**(스크린샷 잡과 동일한 부팅되는 조합)+boot-timeout 900+2회 시도, 검증을 `scripts/ci-kiosk-verify.sh`로 추출. **4항목 전부 PASS**(6/6): (1)FULL_LOCK 진입 (2)lock task LOCKED (3)HOME/RECENTS 무시 (4)상태바/그림자 차단, +해제(5)(6). (3)(4)는 단일 `mCurrentFocus` 읽기가 GC 순간 null이라 flaky(6/6↔4/6) → **8초 폴링**(focus=앱 AND lock=LOCKED)로 안정화. 실측 dump를 kiosk-summary.txt에 첨부(HOME/그림자 후에도 MainActivity 포커스+LOCKED 확인).
+- **계측 5건 (문제7)**: 원인=**테스트 측 타이밍 버그**(앱 정상). `autoAdvance=false`로 시계가 멈춰 터치 후 리컴포지션/제스처가 안 돌아 다음 assert 실패. 각 터치 뒤 프레임 몇 개만 진행(`settle()`/advanceTimeBy, 1초 idle 폴링 미만)으로 해결. 검증 내용 불변. 5건(cardTap·videoList·wrongPin·overPlayer·touchShield) 전부 통과.
+- **부수 수정**: ConfigNetworkTest(순수 데이터 테스트)가 UI 테스트의 Compose LazyLayout prefetch(Choreographer) 콜백 누수로 "must have a looper!" → **테스트 프로세스 격리(ANDROIDX_TEST_ORCHESTRATOR)**로 해결(검증 불변). `montage` 대비 러너에 ImageMagick 부재로 contact-sheet 스텝이 잡을 실패시킴 → 설치+continue-on-error.
+- **최종 CI**: 계측 16/16, 키오스크 6/6, 스크린샷 7/7 가로. 뷰어 재배포는 `scripts/refresh-screenshots.sh`.
+
 ## STEP 9-B (2026-08-03) — CI 스크린샷을 폰에서 보기 — DONE ✅
 - **뷰어 라이브**: https://nowflix-ci-view.vercel.app (Vercel `nowflix-ci-view`, icn1, 관리자 웹과 분리된 임시 프로젝트). 7장 index 200 + 이미지 전부 200, 배포 보호 없음(공개). `ci-viewer/index.html`(무프레임워크, 한글 화면명·탭 확대 라이트박스·상단 커밋/촬영시각·키오스크 로그 섹션).
 - **파이프라인**: `verify.yml`에 `publish-screenshots` 잡(`contents:write`)이 매 실행 **orphan `ci-screenshots` 브랜치**를 force-push(스크린샷만, 히스토리 미적재, main엔 이미지 없음) + status/diag/JUnit XML도 브랜치로 노출(이 VM엔 토큰 없어 로그 조회 불가 → 브랜치가 유일 관측창). `scripts/refresh-screenshots.sh` 한 줄로 재-fetch+재배포.
