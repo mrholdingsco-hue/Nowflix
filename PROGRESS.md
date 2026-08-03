@@ -1,5 +1,14 @@
 # NOWFLIX Kiosk — Progress
 
+## STEP 8 (2026-08-03) — 관리자 웹(Next.js/Vercel) + 앱 관리자 화면 마무리 — DONE
+- **배포**: `admin-web/` (Next.js 14.2.35 App Router + TS + Tailwind). 프로덕션 **https://nowflix-admin.vercel.app**, 함수 리전 **icn1(서울)** — 라이브 `x-vercel-id: icn1::icn1`로 실측 확인. Vercel 프로젝트 `nowflix-admin`(framework preset=nextjs를 API로 설정, `vercel.json` regions=["icn1"]). env 5종(SUPABASE_URL/ANON/SERVICE_ROLE/YOUTUBE_API_KEY/SESSION_SECRET) Vercel에 암호화 저장, 저장소 미커밋(`admin-web/.env.local` gitignore).
+- **보안 분리**: 앱은 anon 키로 `settings`를 읽으므로 웹 비번해시/시도제한을 거기 두면 anon에 노출됨 → 별도 `web_auth`(single-row, RLS on·정책 0개=anon 거부, service_role만 접근) 테이블 신설(`supabase/migrations/20260803140000_web_admin_auth.sql`). anon read = `[]`, service_role = 1행 실측. 모든 쓰기는 서버 라우트에서 service_role로만(`src/lib/db.ts`, `server-only`). service_role 키 클라이언트 번들 노출 = **0**(로컬 `.next/static` + 라이브 청크 grep 둘 다 0).
+- **로그인**: 단일 비번, bcrypt 해시(초기 `nowflix2026`, `is_default=true`→최초 로그인 시 변경안내 배너), httpOnly JWT 쿠키(jose, 8h 만료), 5회 실패→60초 잠금(순수 `rateLimit.ts`, 상태는 `web_auth`에 영속). 라이브: 오답 401·정답 200(mustChangePassword=true)·무쿠키 API 401.
+- **화면**: ①파트관리(썸네일·영상수·활성, 추가=재생목록 URL에서 `list=`만 추출+YouTube playlists.list 실존검증 후 저장/이미지 jpg·png·5MB·세로900px sharp 리사이즈→thumbnails 버킷/수정/위아래 순서/노출토글/삭제는 파트명 직접입력 확인+Storage 이미지 동시삭제) ②설정(복귀30~600초·앱PIN 6자리 SHA-256·헤더문구·웹비번, "최대 30분 반영" 안내) ③상태(파트별 재생목록 영상수 실시간, 비공개/삭제 경고). 밝고 단순한 관리도구 톤(Pretendard, 파랑), 반응형(모바일 OK), 전부 한국어.
+- **앱 마무리**(`AdminScreen`): 현재 복귀시간·파트수 표시, "설정 새로고침" 버튼(`rememberKioskConfig`에 refreshKey 재시작 훅 → 30분 폴링 안 기다리고 즉시 재fetch), 관리자 웹 QR(zxing-core, 검정/흰 모듈, `BuildConfig.ADMIN_WEB_URL`). 앱은 읽기 전용 유지. 잡은 버그: refresh 람다가 `refreshKey++`(Int) 반환 → `+= 1`(Unit)로 수정.
+- **검증**: admin-web 단위테스트 **22 pass**(playlist id추출 9·rateLimit 6·image검증 7), 앱 **91 pass/0 fail**, `next build`·`assembleDebug` OK(APK 33MB). 라이브 실측: 로그인→파트추가(pos 7, 썸네일 업로드/공개 200)→anon SELECT가 7개 수신(태블릿 관점)→삭제→anon 6개·Storage list 0개(진짜 삭제, 렌더 엔드포인트 200은 CDN 캐시였음). git diff 키 스캔 clean. 커밋+push.
+- OPEN: 웹 로그인 기본비번(nowflix2026)·앱PIN 기본값 미변경 상태 — 병원 담당자가 최초 로그인 후 변경 유도(배너). 앱 QR은 프로덕션 도메인 하드코딩(BuildConfig), 도메인 바뀌면 값 갱신 후 재빌드.
+
 ## STEP 7 (2026-08-03) — 키오스크 잠금 (하드 락다운) — DONE (실기기 검증 대기)
 - 원칙: 잠금보다 **탈출 경로 3개 먼저**. `enterKioskLock()`은 escape 오버레이가 컴포즈에 올라온 뒤 `LaunchedEffect(Unit)`에서 1회 호출(즉시 무조건 잠금 X, 안전벨트).
 - 두 모드 자동 분기(하나의 코드): `lockModeFor(isDeviceOwner)` → `KioskLockMode`. **FULL_LOCK**(device owner): `setLockTaskPackages`+`addPersistentPreferredActivity(HOME)` → `startLockTask`(무프롬프트) → `setStatusBarDisabled`/`setKeyguardDisabled`. **FALLBACK**(비owner): `startLockTask`(시스템 확인) + manifest HOME 필터, `onResume`에서 `LockTaskReentry`로 재진입(간격 2s 가드 → 무한루프 없음). DevicePolicyManager는 `KioskController` 인터페이스로 감싸 fake 주입(`AndroidKioskController`=표준 AOSP API만, Knox 미사용).

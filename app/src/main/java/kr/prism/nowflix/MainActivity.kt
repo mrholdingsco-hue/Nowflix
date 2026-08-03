@@ -138,7 +138,8 @@ class MainActivity : ComponentActivity() {
                 var nav by remember { mutableStateOf(KioskNavState()) }
                 val descriptions = rememberDescriptions()
                 // Supabase-backed config (parts + settings) with silent cache/asset fallback.
-                val config = rememberKioskConfig()
+                val configHolder = rememberKioskConfig()
+                val config = configHolder.config
 
                 // Escape-path state, orthogonal to browse/play nav: hidden gesture -> PIN -> admin.
                 var showPin by remember { mutableStateOf(false) }
@@ -269,6 +270,11 @@ class MainActivity : ComponentActivity() {
                             lockMode = lockMode,
                             appVersion = BuildConfig.VERSION_NAME,
                             lastRemoteAtMillis = lastRemoteAt,
+                            returnSeconds = config.settings.idleReturnSeconds,
+                            partCount = config.parts.size,
+                            adminWebUrl = BuildConfig.ADMIN_WEB_URL,
+                            refreshing = configHolder.refreshing,
+                            onRefresh = configHolder.refresh,
                             onReleaseFully = {
                                 kiosk.releaseFully()
                                 finishAndRemoveTask()
@@ -358,30 +364,49 @@ private fun rememberDescriptions(): Map<String, String> {
     return state.value
 }
 
+/** Live config plus the manual-refresh hook the admin screen's "설정 새로고침" button uses. */
+class KioskConfigHolder(
+    val config: KioskConfig,
+    val refreshing: Boolean,
+    val refresh: () -> Unit,
+)
+
 /**
  * Kiosk config with the three-stage fallback (Supabase -> cache -> bundled assets).
  * Renders instantly from bundled assets, then loads once at start and re-fetches every
  * 30 minutes. A failed fetch changes nothing on screen — it silently keeps prior values.
+ *
+ * [KioskConfigHolder.refresh] bumps a key that restarts the load loop, so the admin can
+ * pull new remote settings immediately instead of waiting out the 30-minute cadence.
  */
 @Composable
-private fun rememberKioskConfig(): KioskConfig {
+private fun rememberKioskConfig(): KioskConfigHolder {
     val context = LocalContext.current
     val bundled = remember { PartsRepository.load(context) }
     var config by remember { mutableStateOf(KioskConfig(bundled, KioskSettings())) }
-    LaunchedEffect(Unit) {
-        val repo = KioskConfigRepository(
+    var refreshing by remember { mutableStateOf(false) }
+    var refreshKey by remember { mutableStateOf(0) }
+    val repo = remember {
+        KioskConfigRepository(
             source = RetrofitSupabaseSource(
                 SupabaseService.create(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_ANON_KEY),
             ),
             cache = FileConfigCacheStore(context.filesDir),
             bundled = { bundled },
         )
+    }
+    // Keyed on refreshKey: a manual refresh cancels this and re-enters, loading immediately
+    // and then resuming the 30-minute cadence from that point.
+    LaunchedEffect(refreshKey) {
         while (true) {
+            refreshing = true
             config = repo.load()
-            delay(30 * 60 * 1000L) // once at start, then every 30 minutes
+            refreshing = false
+            delay(30 * 60 * 1000L) // once now, then every 30 minutes
         }
     }
-    return config
+    val refresh: () -> Unit = remember { { refreshKey += 1 } }
+    return KioskConfigHolder(config, refreshing, refresh)
 }
 
 @Composable

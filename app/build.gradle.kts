@@ -33,6 +33,8 @@ android {
         buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
         buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseAnonKey\"")
+        // Admin web address the operator scans from the tablet's admin screen. Not a secret.
+        buildConfigField("String", "ADMIN_WEB_URL", "\"https://nowflix-admin.vercel.app\"")
     }
 
     buildTypes {
@@ -75,6 +77,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.coil.compose)
     implementation(libs.youtube.player)
+    implementation(libs.zxing.core)
     debugImplementation(libs.androidx.ui.tooling)
 
     testImplementation(libs.junit)

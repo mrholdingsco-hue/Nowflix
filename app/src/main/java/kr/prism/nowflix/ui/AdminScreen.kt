@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -40,14 +41,21 @@ private val Accent = Color(0xFFE50914)
 private val Muted = Color(0xFFAAAAAA)
 
 /**
- * Admin panel reached after a correct PIN (escape path #2). STEP 7 scope: show live state and
- * the two safety actions. PIN change + part management are STEP 8 — placeholders only here.
+ * Admin panel reached after a correct PIN (escape path #2). Shows the live applied
+ * settings, a manual remote-config refresh, a QR to the admin web, and the two safety
+ * actions. The app never writes settings — all changes happen on the admin web; this
+ * screen only reads and (on demand) re-pulls them.
  */
 @Composable
 fun AdminScreen(
     lockMode: KioskLockMode,
     appVersion: String,
     lastRemoteAtMillis: Long?,
+    returnSeconds: Int,
+    partCount: Int,
+    adminWebUrl: String,
+    refreshing: Boolean,
+    onRefresh: () -> Unit,
     onReleaseFully: () -> Unit,
     onExitApp: () -> Unit,
     onClose: () -> Unit,
@@ -71,34 +79,53 @@ fun AdminScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         )
 
-        Column(modifier = Modifier.fillMaxSize()) {
-            Text("관리자", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(24.dp))
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.spacedBy(28.dp),
+        ) {
+            // Left: live state + actions.
+            Column(modifier = Modifier.weight(1f)) {
+                Text("관리자", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(20.dp))
 
-            InfoCard {
-                InfoRow("잠금 모드", lockModeLabel(lockMode))
-                InfoRow("앱 버전", appVersion)
-                InfoRow("마지막 원격 설정 수신", formatRemoteTime(lastRemoteAtMillis))
-            }
+                InfoCard {
+                    InfoRow("메인 복귀 시간", "${returnSeconds}초")
+                    InfoRow("현재 파트 수", "${partCount}개")
+                    InfoRow("잠금 모드", lockModeLabel(lockMode))
+                    InfoRow("앱 버전", appVersion)
+                    InfoRow("마지막 원격 설정 수신", formatRemoteTime(lastRemoteAtMillis))
+                }
 
-            Spacer(Modifier.height(28.dp))
+                Spacer(Modifier.height(20.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 ActionButton(
-                    text = "키오스크 모드 완전 해제",
+                    text = if (refreshing) "새로고침 중…" else "설정 새로고침",
                     filled = true,
-                    onClick = { confirmRelease = true },
+                    enabled = !refreshing,
+                    onClick = onRefresh,
                 )
-                ActionButton(text = "앱 종료", filled = false, onClick = onExitApp)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "30분 주기를 기다리지 않고 지금 바로 원격 설정을 다시 받아와요.",
+                    color = Muted,
+                    fontSize = 13.sp,
+                )
+
+                Spacer(Modifier.height(24.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    ActionButton(
+                        text = "키오스크 모드 완전 해제",
+                        filled = false,
+                        accentBorder = true,
+                        onClick = { confirmRelease = true },
+                    )
+                    ActionButton(text = "앱 종료", filled = false, onClick = onExitApp)
+                }
             }
 
-            Spacer(Modifier.height(28.dp))
-
-            // STEP 8 placeholders — reserved slots, intentionally inert.
-            Text("설정 (STEP 8 예정)", color = Muted, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(10.dp))
-            DisabledRow("PIN 변경")
-            DisabledRow("파트 관리")
+            // Right: QR to the admin web for the operator's phone.
+            QrPanel(url = adminWebUrl)
         }
     }
 
@@ -149,31 +176,57 @@ private fun InfoRow(label: String, value: String) {
 }
 
 @Composable
-private fun ActionButton(text: String, filled: Boolean, onClick: () -> Unit) {
+private fun ActionButton(
+    text: String,
+    filled: Boolean,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    accentBorder: Boolean = false,
+) {
+    val borderColor = if (accentBorder) Accent else Muted
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
             .then(
-                if (filled) Modifier.background(Accent)
-                else Modifier.border(1.dp, Muted, RoundedCornerShape(8.dp)),
+                if (filled) Modifier.background(if (enabled) Accent else Accent.copy(alpha = 0.4f))
+                else Modifier.border(1.dp, borderColor, RoundedCornerShape(8.dp)),
             )
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 22.dp, vertical = 14.dp),
     ) {
         Text(text, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
+/** QR + address so the operator can open the admin web on their phone. */
 @Composable
-private fun DisabledRow(text: String) {
-    Box(
+private fun QrPanel(url: String) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFF141416))
-            .padding(horizontal = 18.dp, vertical = 14.dp),
+            .width(240.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Card)
+            .padding(20.dp),
     ) {
-        Text(text, color = Color(0xFF5A5A5E), fontSize = 15.sp)
+        Text("관리자 웹", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(4.dp))
+        Text("폰으로 스캔해 접속하세요", color = Muted, fontSize = 12.sp)
+        Spacer(Modifier.height(14.dp))
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.White)
+                .padding(10.dp),
+        ) {
+            QrCode(content = url, sizePx = 480, modifier = Modifier.size(180.dp))
+        }
+        Spacer(Modifier.height(12.dp))
+        Text(
+            url.removePrefix("https://"),
+            color = Muted,
+            fontSize = 12.sp,
+        )
     }
 }
 
