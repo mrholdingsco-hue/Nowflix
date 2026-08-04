@@ -8,6 +8,10 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -45,7 +49,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -68,7 +74,15 @@ import java.time.OffsetDateTime
 
 private const val TAG = "Nowflix"
 private val Background = Color(0xFF0F0F0F)
-private val ControlScrim = Color(0x66000000)
+// Pill/scrim behind the on-video controls. Kept dark enough that white glyphs stay legible even
+// over a bright video frame (raised from 40% to 60% black).
+private val ControlScrim = Color(0x99000000)
+// Gradient laid under the always-on bottom bar so the progress line + time never wash out on a
+// bright frame. Transparent at the top, dark at the very bottom.
+private val BottomScrim = Brush.verticalGradient(
+    0f to Color.Transparent,
+    1f to Color(0xB3000000),
+)
 private val TrackRemaining = Color(0x4DFFFFFF) // white @ 30%
 private val ProgressRed = Color(0xFFFF0000)
 private const val CONTROLS_TIMEOUT_MS = 3000L
@@ -250,6 +264,9 @@ private fun PlayerStage(
             modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
                 YouTubePlayerView(ctx).apply {
+                    // The embed's WebView defaults to a white page; paint the whole view stack black
+                    // so the video area is never a white flash before/behind the frame.
+                    setBackgroundColor(android.graphics.Color.BLACK)
                     enableAutomaticInitialization = false
                     val options = IFramePlayerOptions.Builder(ctx)
                         .controls(0)    // hide the iframe's own web UI — we draw our own
@@ -270,6 +287,12 @@ private fun PlayerStage(
                 view.release()
             },
         )
+
+        // Until the frame paints (duration still unknown), sit a gentle brand mark on the black
+        // stage instead of a spinner. It fades away the moment the video reports its duration.
+        if (durationSec.floatValue <= 0f) {
+            LoadingMark(modifier = Modifier.align(Alignment.Center))
+        }
 
         // Touch shield: swallows EVERY pointer event over the video (down, moves, up) so
         // nothing inside the embed — YouTube logo, video title, "Watch on YouTube", long-press
@@ -300,53 +323,73 @@ private fun PlayerStage(
                 .padding(12.dp),
         )
 
+        // Center play / pause fades out during playback (immersion); a touch brings it back.
         AnimatedVisibility(
             visible = controlsVisible,
             enter = fadeIn(tween(200)),
             exit = fadeOut(tween(200)),
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.align(Alignment.Center),
         ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                // Center play / pause.
-                PlayPauseButton(
-                    isPlaying = isPlaying,
-                    onClick = { revealControls(); onTogglePlay() },
-                    modifier = Modifier.align(Alignment.Center),
+            PlayPauseButton(
+                isPlaying = isPlaying,
+                onClick = { revealControls(); onTogglePlay() },
+            )
+        }
+
+        // Bottom bar — progress line + time (left) and "다음 영상" (right) — is ALWAYS on, pinned
+        // to the player's bottom edge over a dark gradient so it reads on any frame.
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(BottomScrim)
+                .padding(start = 12.dp, end = 12.dp, top = 24.dp, bottom = 10.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = PlayerProgress.label(currentSec.floatValue, durationSec.floatValue),
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
                 )
-                // Bottom cluster: progress bar + time (left) and next (right).
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = PlayerProgress.label(currentSec.floatValue, durationSec.floatValue),
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                        )
-                        Spacer(Modifier.weight(1f))
-                        if (showNext) {
-                            NextButton(onClick = { revealControls(); onNext() })
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    SeekBar(
-                        currentSec = currentSec,
-                        durationSec = durationSec,
-                        scrubbing = scrubbing,
-                        onScrub = { revealControls() },
-                        onSeek = onSeek,
-                    )
+                Spacer(Modifier.weight(1f))
+                if (showNext) {
+                    NextButton(onClick = { revealControls(); onNext() })
                 }
             }
+            Spacer(Modifier.height(8.dp))
+            SeekBar(
+                currentSec = currentSec,
+                durationSec = durationSec,
+                scrubbing = scrubbing,
+                onScrub = { revealControls() },
+                onSeek = onSeek,
+            )
         }
     }
+}
+
+/** Subtle, spinner-free loading state: the wordmark breathing on the black stage. */
+@Composable
+private fun LoadingMark(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "loading")
+    val alpha by transition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 0.6f,
+        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
+        label = "loadingAlpha",
+    )
+    Text(
+        text = "NOWFLIX",
+        color = Color.White,
+        fontSize = 20.sp,
+        fontWeight = FontWeight.Black,
+        letterSpacing = 3.sp,
+        modifier = modifier.alpha(alpha),
+    )
 }
 
 @Composable
@@ -573,6 +616,8 @@ private fun View.findWebView(): WebView? {
  * and the long-press context menu / text selection are turned off.
  */
 private fun lockDownWebView(web: WebView) {
+    // Kill the WebView's default white page so the video area is black until the frame paints.
+    web.setBackgroundColor(android.graphics.Color.BLACK)
     web.isLongClickable = false
     web.setOnLongClickListener { true }
     web.isHapticFeedbackEnabled = false

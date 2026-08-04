@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -106,13 +107,12 @@ private const val TOP_BAND_FRACTION = 0.18f
 // Row geometry — also feeds CardMetrics for the width calc.
 private val RowSidePadding = 24.dp
 private val CardGap = 12.dp
+// Gap tying the header to the card row so they read as one centered block (problem: header was
+// floating ~395px above the cards).
+private val HeaderCardGap = 24.dp
 // Home cards are vertical posters (client artwork is 4:5). The poster fills the card
 // edge-to-edge via ContentScale.Crop — no letterbox bars, no stretch.
 private const val POSTER_ASPECT = 4f / 5f
-// Height (dp) the row reserves under each poster for the part-name label + its top gap +
-// the LazyRow's own vertical content padding. Feeds the height-capped card-width calc so a
-// full row of tall posters never runs past the bottom of the screen.
-private const val CardTitleReserveDp = 48f
 private val CardCorner = 4.dp
 
 class MainActivity : ComponentActivity() {
@@ -463,17 +463,26 @@ internal fun HomeScreen(
         val bandHeight = maxHeight * TOP_BAND_FRACTION
         Column(modifier = Modifier.fillMaxSize()) {
             TopBand(bandHeight = bandHeight, modifier = Modifier.height(bandHeight))
-            TopContentHeader(count = parts.size)
-            // Give the row the whole remaining height so the card-width math can cap the
-            // poster height to what actually fits below the band + header.
-            PartsRow(
-                parts = parts,
-                listState = listState,
-                onPartClick = onPartClick,
+            // Header + card row are one block, tied together by a small gap, and the block is
+            // centered vertically in the area below the red band so the header never floats off
+            // on its own above the cards.
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    TopContentHeader(count = parts.size)
+                    Spacer(Modifier.height(HeaderCardGap))
+                    PartsRow(
+                        parts = parts,
+                        listState = listState,
+                        onPartClick = onPartClick,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
         }
     }
 }
@@ -516,7 +525,7 @@ private fun TopContentHeader(count: Int) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = RowSidePadding, end = RowSidePadding, top = 20.dp, bottom = 12.dp),
+            .padding(horizontal = RowSidePadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -550,21 +559,20 @@ private fun PartsRow(
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier = modifier) {
+        // Width follows the screen-width constraint only (six columns fill the row ~edge-to-edge);
+        // the row now wraps its own height, so no height cap is applied. Extra parts keep this
+        // width and scroll.
         val cardWidthDp = CardMetrics.cardWidthDp(
             rowWidthDp = maxWidth.value,
             itemCount = parts.size,
             sidePaddingDp = RowSidePadding.value,
             gapDp = CardGap.value,
-            availableHeightDp = maxHeight.value,
-            titleReserveDp = CardTitleReserveDp,
         ).dp
         LazyRow(
             state = listState,
             contentPadding = PaddingValues(horizontal = RowSidePadding, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(CardGap),
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.CenterStart),
+            modifier = Modifier.fillMaxWidth(),
         ) {
             items(parts, key = { it.id }) { part ->
                 PartCard(part = part, width = cardWidthDp, onClick = { onPartClick(part) })
