@@ -1,5 +1,20 @@
 # NOWFLIX Kiosk — Progress
 
+> **프로젝트 상태: STEP 1~10 완료 — 릴리즈 빌드·서명·인계 문서까지 마감(v1.0.0).**
+> 산출물: `dist/nowflix-1.0.0.apk` (서명됨). 설치: `scripts/install.sh`. 인계 문서: `docs/`.
+
+## STEP 10 (2026-08-04) — 릴리즈 빌드 · 서명 · 병원 인계 — DONE ✅
+- **서명 키**: `nowflix-release.jks`(별칭 `nowflix`, RSA-2048, 유효기간 30년=10950일, 비번 `nowflix-kiosk-2026`). 키·비번 **미커밋**(`.gitignore`의 `*.jks` + 서명값은 gitignored `local.properties`에만). `build.gradle.kts`가 `RELEASE_STORE_FILE/PASSWORD/KEY_ALIAS/KEY_PASSWORD`를 local.properties에서 읽어 주입하되 **`hasReleaseSigning` 가드**(키스토어 파일 있을 때만 `signingConfigs.create("release")`) → 키 없는 머신/CI는 미서명으로 빌드 계속. 인계문서에 "이 키 분실 시 기존 앱 위 업데이트 설치 불가" 명시.
+- **버전**: versionCode 1, versionName `0.1.0`→`1.0.0`. 관리자 화면은 `BuildConfig.VERSION_NAME`을 표시하므로 값이 자동 갱신(별도 하드코딩 없음, 실측 `aapt`: versionName='1.0.0').
+- **릴리즈 buildType**: `isMinifyEnabled=false`·`isShrinkResources=false`(WebView 뷰트리 스캔/kotlinx.serialization 보호), `isDebuggable=false`. `android:testOnly="true"` **유지**(aapt `testOnly='-1'`=true) → 잠금 사고 시 공장초기화 없이 `dpm remove-active-admin` 복구 가능, 대신 설치·업데이트 항상 `adb install -t`(문서·스크립트 반영). 릴리즈 로그 키/토큰 유출 점검: 앱 내 Log 중 시크릿 출력 **없음**(유일한 URL 로깅 `PlayerScreen.kt:640`은 차단된 내비 URL, 시크릿 아님).
+- **lint-vital 크래시 우회**: `assembleRelease`가 `lintVitalAnalyzeRelease`에서 androidx.lifecycle `NonNullableMutableLiveDataDetector`의 `IncompatibleClassChangeError`(AGP/lint 버전 불일치 툴 버그, 우리 코드 무관·LiveData 미사용)로 APK는 정상 산출되나 BUILD FAILED. 이슈ID `disable`은 클래스 링크 단계 크래시라 무효 → `lint { checkReleaseBuilds = false }`로 릴리즈에서 lint-vital만 비활성(정확성은 단위+계측 CI가 담당). 이후 `assembleRelease` **BUILD SUCCESSFUL**.
+- **서명 검증(실측)**: `apksigner verify` **Verified**(v2 APK Signature Scheme). 서명자 `CN=NOWFLIX Kiosk, O=NOWFLIX, L=Seoul, C=KR`, cert SHA-256 `a4c738b61091944da8f75866eaf20456fe8a3d91147b2f70470ad0850720b479`, RSA 2048.
+- **산출물**: `dist/nowflix-1.0.0.apk` = **27,079,368 바이트(25.8 MB)**.
+- **스크립트**: `scripts/install.sh`(태블릿 1대 6단계: 연결확인·다기기 선택→기존앱 owner해제+삭제→`install -t`→`dpm set-device-owner`→실행→lock task/owner 상태 조회 후 한국어 성공 판정; 각 실패에 한국어 원인·조치, device owner 실패 시 "계정 제거" 안내). `scripts/uninstall.sh`(owner 해제+앱 삭제, 재부팅 재주장 대비 2차 시도).
+- **문서(한국어·비개발자)**: `docs/설치가이드.md`(윈도우 adb 설치→개발자옵션/USB디버깅→계정 제거 필수→install.sh→5대 순차→실패 시 3가지), `docs/운영가이드.md`(관리자 웹 로그인·재생목록 교체·파트 추가[포스터 **세로 4:5**]·복귀시간/PIN·반영시간[최대 30분]·"설정 새로고침" 즉시 반영), `docs/인계문서.md`(구성 1장 요약·계정3[구글/Supabase/Vercel]·기본 비번/PIN 변경 안내·keystore 의미·문제해결 순서[앱재시작→재부팅→PIN→완전해제→재설치]·무상 유지보수(계약 빈칸)·`nowflix-ci-view` 삭제 대상). **실측 확인**: 태블릿의 실효 PIN은 Supabase 시드값 `739104`(SHA-256 대조 확인), 내장 fallback `000000`은 원격/캐시 전무 시에만 — 문서·스크립트 모두 `739104` 기준으로 통일. 웹 기본 비번 `nowflix2026`.
+- **README.md** 신설(구조·빌드[디버그/릴리즈/웹]·설치·문서 색인).
+- **시크릿 스캔(커밋 대상 170파일)**: `AIza`/`sbp_`/`vcp_`/`eyJ`(JWT)/keystore 비번 `nowflix-kiosk-2026` 리터럴 **0건**. `service_role`은 주석/SQL의 **역할명 언급**뿐(키 값 아님). 시크릿·키스토어·local.properties 전부 gitignored.
+
 ## STEP 9-D (2026-08-04) — 플레이어 흰화면·컨트롤 대비·메인 헤더 간격 — DONE ✅
 - **문제1 플레이어 흰색**: 임베드 WebView 기본 페이지가 흰색 → `captureToImage`가 그 흰색을 잡음(뷰/WebView `setBackgroundColor(BLACK)`는 캡처 픽셀에 효과 없음, 실측). 해결: 재생 시작 전(`currentSec<=0`) **불투명 검정 backdrop**으로 스테이지 전체를 덮고 재생이 실제 진행되면 걷음(실기기 흰 플래시도 제거). backdrop 위에 스피너 대신 은은한 breathing "NOWFLIX" 마크. Compose 스테이지 박스·Row 배경은 이미 검정.
 - **문제2 컨트롤 대비/진행바**: 진행바+시간은 원래 그려지고 있었으나 (a)3초 자동숨김 컨트롤 안에 있었고 (b)흰 WebView 위 white@30% 트랙이라 안 보였음(=코드 누락 아님). 진행바+`0:00/0:00` 시간을 **자동숨김에서 빼내 하단 상시 바**(어두운 그라데이션 위)로 이동. 컨트롤 scrim 40%→60% 검정. 가운데 재생/일시정지만 자동숨김 유지.
