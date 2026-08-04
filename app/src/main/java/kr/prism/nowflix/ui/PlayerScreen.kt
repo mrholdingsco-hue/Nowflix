@@ -288,10 +288,20 @@ private fun PlayerStage(
             },
         )
 
-        // Until the frame paints (duration still unknown), sit a gentle brand mark on the black
-        // stage instead of a spinner. It fades away the moment the video reports its duration.
-        if (durationSec.floatValue <= 0f) {
-            LoadingMark(modifier = Modifier.align(Alignment.Center))
+        // Opaque black backdrop over the embed until playback actually begins (position still 0).
+        // The embed's WebView paints its default white page before the first frame — captureToImage
+        // grabs that white, and a real device shows the same flash — so we cover it entirely and
+        // lift the cover the instant the video starts advancing. A gentle spinner-free brand mark
+        // breathes on top meanwhile.
+        if (currentSec.floatValue <= 0f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black),
+                contentAlignment = Alignment.Center,
+            ) {
+                LoadingMark()
+            }
         }
 
         // Touch shield: swallows EVERY pointer event over the video (down, moves, up) so
