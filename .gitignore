@@ -22,3 +22,6 @@ local.properties
 /ci-viewer/meta.txt
 /ci-viewer/kiosk-summary.txt
 /ci-viewer/.vercel
+
+# Install package — built on demand / published via release workflow, never committed
+/nowflix-install-package.zip
