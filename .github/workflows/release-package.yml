@@ -11,6 +11,17 @@ on:
         description: "릴리즈 태그"
         required: true
         default: "v1.0.0"
+      source:
+        description: "zip 출처"
+        required: true
+        default: branch
+        type: choice
+        options:
+          # install-package 브랜치에 이미 올라간, 병원 키로 서명·검증이 끝난 zip 을 그대로 올린다.
+          # 시크릿이 필요 없고 로컬에서 확인한 바이너리와 100% 동일하다. (기본값)
+          - branch
+          # 릴리즈 APK 를 이 자리에서 다시 빌드해 패키징한다. 서명 키·앱 키 시크릿 7종이 필요하다.
+          - rebuild
 
 permissions:
   contents: write
@@ -25,6 +36,7 @@ jobs:
       # 서명 키와 앱 키는 저장소에 없다(gitignore). Actions 시크릿으로만 주입된다.
       # 하나라도 없으면 서명되지 않은/키 없는 APK 가 배포될 수 있으므로 여기서 즉시 중단한다.
       - name: Check required secrets
+        if: inputs.source == 'rebuild'
         env:
           KS: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
           SP: ${{ secrets.RELEASE_STORE_PASSWORD }}
@@ -48,6 +60,7 @@ jobs:
           fi
 
       - name: Set up JDK 17
+        if: inputs.source == 'rebuild'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -55,10 +68,12 @@ jobs:
           cache: gradle
 
       - name: Set up Android SDK
+        if: inputs.source == 'rebuild'
         uses: android-actions/setup-android@v3
 
       # local.properties 와 keystore 는 러너 디스크에만 만들어지고 커밋되지 않는다.
       - name: Restore keystore + local.properties
+        if: inputs.source == 'rebuild'
         env:
           KS: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
           SP: ${{ secrets.RELEASE_STORE_PASSWORD }}
@@ -80,16 +95,19 @@ jobs:
           } > local.properties
 
       - name: Build release APK
+        if: inputs.source == 'rebuild'
         run: ./gradlew assembleRelease --stacktrace
 
       # 서명 없이 빌드가 통과하는 구조(build.gradle.kts 의 hasReleaseSigning 폴백)이므로,
       # 실제로 서명된 APK 인지 여기서 확인하고 아니면 배포를 중단한다.
       - name: Verify APK is signed
+        if: inputs.source == 'rebuild'
         run: |
           APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
           "$APKSIGNER" verify --print-certs app/build/outputs/apk/release/app-release.apk
 
       - name: Assemble nowflix/ package tree
+        if: inputs.source == 'rebuild'
         run: |
           rm -rf pkg && mkdir -p pkg/nowflix/dist pkg/nowflix/scripts
           cp app/build/outputs/apk/release/app-release.apk pkg/nowflix/dist/nowflix-1.0.0.apk
@@ -100,6 +118,14 @@ jobs:
 
       # 업로드 직전 게이트: keystore / local.properties / .env 계열이 zip 에 섞여 들어가지
       # 않았는지, 텍스트 파일에 키 값이 하드코딩되지 않았는지 확인한다. 걸리면 배포 중단.
+      # 기본 경로: 브랜치에 보관된 zip 을 그대로 받아온다. 빌드도 시크릿도 필요 없다.
+      - name: Fetch zip from install-package branch
+        if: inputs.source == 'branch'
+        run: |
+          git fetch --depth 1 origin install-package
+          git show FETCH_HEAD:nowflix-install-package.zip > nowflix-install-package.zip
+          ls -l nowflix-install-package.zip
+
       - name: Secret scan before upload
         run: |
           echo "--- 파일 목록 ---"; unzip -l nowflix-install-package.zip
