@@ -119,3 +119,10 @@
 - Exit-lock (two layers): (1) full-surface Compose touch-shield over the player that consumes EVERY pointer event (awaitEachGesture+consume) -> the embed's YouTube logo/title/"Watch on YouTube"/long-press are physically un-tappable; a touch only reveals our controls. (2) internal WebView (found by recursive view scan; lib sets no WebViewClient so ours is safe) -> shouldOverrideUrlLoading swallows every main-frame nav (sub-frames = the player, allowed), setSupportMultipleWindows(false), long-click off. ENDED -> load next immediately (pre-empts end-screen); last video -> back to list. NOT device-verified in this headless VM (no emulator) — logic + build verified; live touch/nav check pending on real tablet.
 - UI: bg #0F0F0F. Left ~65% 16:9 player + custom controls (center play/pause, bottom progress bar played #FF0000 / remaining white30% draggable-seek, "1:28/3:49", top-left "←목록으로" always-on, bottom-right "다음 영상▶"; 3s auto-hide, fades ≤200ms) + title 16sp/meta. Right ~35% "다음 동영상" = shared `VideoRow` (extracted to `ui/VideoRowUi.kt`, reused by detail), current row highlighted (#272727 + left red bar) & auto-scrolled to top. Nav: row/모두재생 -> player; 목록으로/back -> detail; back gesture on player = list only.
 - Pure/testable: `player/PlaybackQueue` (nextIndex/isLast) + `player/PlayerProgress` (fraction/seekSeconds/label). Tests: 53 pass / 0 fail (+PlaybackQueue 5, PlayerProgress 6, PlaylistMeta 4). `assembleDebug` OK (VM cold ~72m). APK app-debug.apk 34 MB. Committed + pushed to origin/main.
+
+## STEP 10-2 — 설치 패키지 배포 (2026-08-24)
+- `nowflix-install-package.zip` (12MB, nowflix/dist+scripts+docs) 생성. keystore/local.properties/.env 미포함 2중 확인(파일명+내용) 완료.
+- `.gitignore` 에 zip 추가 — main 본문에는 커밋 안 함. zip 실물은 `install-package` 브랜치(orphan)에 push.
+- `.github/workflows/release-package.yml` 추가: workflow_dispatch, `source=branch`(기본, 시크릿 불필요 / 브랜치 zip 그대로) 또는 `source=rebuild`(시크릿 7종으로 재빌드). 업로드 직전 시크릿 스캔 게이트 통과해야 릴리즈 생성. 태그 v1.0.0, 제목 "NOWFLIX 키오스크 설치 패키지 v1.0.0".
+- 히스토리 감사: 37커밋 전수 스캔, 실제 키 값 0건 → public 전환 안전.
+- **남은 것: 저장소를 public 으로 전환(브라우저) → Actions 에서 release-package 실행.** 그래야 병원 담당자용 공개 URL 이 열린다.
