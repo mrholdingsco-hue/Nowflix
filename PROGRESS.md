@@ -3,7 +3,14 @@
 > **프로젝트 상태: STEP 1~10 완료 — 릴리즈 빌드·서명·인계 문서까지 마감(v1.0.0).**
 > 산출물: `dist/nowflix-1.0.0.apk` (서명됨). 설치: `scripts/install.sh`. 인계 문서: `docs/`.
 
-## v1.1.0 예정 — 다음 릴리즈 항목 (2026-08-25 기준, 미배포)
+## v1.1.0 릴리즈 (2026-08-25) — 전체화면 + PIN 유예 — DONE ✅ (빌드·서명 완료, 태블릿 설치 대기)
+- **전체화면**: `KioskNavState.isFullscreen`(nav 레벨) — `closePlayer`/`returnToHome`에서만 해제되므로 **자동 다음 재생은 유지, 유휴 복귀는 함께 해제**. `PlayerScreen`은 애니메이션 값 1개(180ms tween, 200ms 이내)로 다음목록 폭과 스테이지 높이를 동시 보간. 터치 쉴드는 스테이지 Box 안 `fillMaxSize`라 **화면이 커지면 같이 커짐**. "←  목록으로"·하단 진행바/재생시간은 컨트롤 자동숨김 **밖**이라 항상 표시. 버튼은 아이콘+한글("전체화면"/"작게 보기"), 숨은 제스처 없음. 뒤로가기 = 전체화면 해제 → 목록.
+- **실측**: 단위 **102/102**(전체화면 2건 신규). CI 계측 **21/21 통과, 0 failed** — 전체화면 4건(레이아웃/쉴드/영상전환 유지/뒤로가기) 실행 확인. **키오스크 잠금 6/6 PASS**. 스크린샷 `08_player_fullscreen.png`(2560×1688 LANDSCAPE) 추가 → 뷰어 배포 확인(HTTP 200). CI run `32844749460`, source_commit `8801048`.
+- **릴리즈**: versionCode 2 / versionName 1.1.0, 기존 `nowflix-release.jks` 서명 — 인증서 SHA-256 `a4c738b6…20b479` **일치 확인**(apksigner), `testOnly=true` 유지. `dist/nowflix-1.1.0.apk` 27,095,748 B (sha256 `b890c889…70a81`). `nowflix-install-package.zip` 재생성 11,793,291 B (sha256 `5856f94f…026ee`) — jks/local.properties/.env **없음**, 키 하드코딩 **없음**(CI와 동일 게이트 로컬 실행).
+- **문서**: 운영가이드 6번(전체화면 사용법), 설치가이드 6번(업데이트 설치 — `export PATH=$PATH:/c/platform-tools` 선행 입력 강조 + 오류표). `release-package.yml`의 1.0.0 하드코딩 → 1.1.0.
+- **남음**: 태블릿 5대 `adb install -r -t dist/nowflix-1.1.0.apk` **미실시**(VM에 기기 없음) → PIN 유예·전체화면 모두 **실기기 미검증**. 설치 후 관리자 화면 버전이 1.1.0인지 확인할 것.
+
+## v1.1.0 예정 — 다음 릴리즈 항목 (2026-08-25 기준, ~~미배포~~ → APK 빌드·서명 완료, 태블릿 설치만 남음)
 
 > 현재 병원 태블릿 5대에 설치된 것은 **v1.0.0** (`dist/nowflix-1.0.0.apk`, versionCode 1).
 > 아래 항목들은 **main 에 커밋·푸시는 됐지만 APK 로 나가지 않았습니다.**
