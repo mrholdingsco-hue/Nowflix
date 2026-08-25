@@ -3,6 +3,13 @@
 > **프로젝트 상태: STEP 1~10 완료 — 릴리즈 빌드·서명·인계 문서까지 마감(v1.0.0).**
 > 산출물: `dist/nowflix-1.0.0.apk` (서명됨). 설치: `scripts/install.sh`. 인계 문서: `docs/`.
 
+## 재발 방지 (2026-08-25) — Supabase 자동 일시정지 대응 — DONE ✅
+- **keepalive**: `.github/workflows/supabase-keepalive.yml` — 3일마다(`17 2 */3 * *`) anon 키로 `settings?select=id&limit=1` 핑. 일시 실패는 `::warning`으로 조용히 넘기고 **3회 연속 실패 시에만 exit 1**(빨간 불 + 알림 메일). 시크릿 `SUPABASE_URL`/`SUPABASE_ANON_KEY` 누락 시 한국어 안내 후 중단. 로컬 실측: 성공 exit 0 / 1회 실패→성공 exit 0 / 3회 연속 실패 exit 1 + step summary.
+- **`/api/login`**: `attemptLogin` 예외(=DB 연결 문제)를 try/catch로 잡아 **503 + "일시적인 서버 문제입니다. 잠시 후 다시 시도해주세요."**, 비밀번호 불일치 401과 분리. 영문 원문·스택은 `console.error`(서버)만. `getWebAuth`는 행 없으면 명시적 throw. 라우트 회귀 테스트 3종 추가(503/401/200), vitest에 `@` 별칭. `npm test` 25/25, `tsc --noEmit` 0.
+- **실측**: 프로덕션 재배포(dpl_Erkv9…가 `nowflix-admin.vercel.app` 별칭) 후 틀린 비번 **401**·빈 비번 **400**(=DB 정상 왕복). DB 다운 재현(무효 SUPABASE_URL로 프로덕션 빌드 로컬 기동) → **503 + 한국어 안내**, 서버 로그에만 `TypeError: fetch failed`. 테스트로 늘어난 `web_auth.failed_count` 2→0 정리. 웹 비번은 **이미 변경됨**(`is_default=false`)이라 기본값 `nowflix2026`은 401.
+- **문서**: `docs/인계문서.md` 5번 신설(증상 구분·Supabase Restore 절차·keepalive 확인법·Pro US$25/월 표). 기존 5~8번은 6~9번으로 번호 이동.
+- **남은 확인(토큰 없어 VM에서 불가)**: GitHub Actions 탭에서 `supabase-keepalive` **Run workflow 1회 수동 실행** + 시크릿 2종 등록 여부 확인. 검증용 preview 배포 `nowflix-admin-n7ikug1rx…`(무효 URL, 보호됨) 남아 있음 — 삭제해도 무방.
+
 ## 장애 대응 (2026-08-25) — 관리자 웹 로그인 500 — 복구 완료 ✅
 - **원인**: Supabase 프로젝트 `nowflix-kiosk`(ref tyypds…)가 무료 플랜 **자동 일시정지(status=INACTIVE)**. 관리자 웹 `/api/login`은 `attemptLogin`→`getWebAuth()`→PostgREST fetch 경로인데, DB가 죽어 `TypeError: fetch failed`가 발생. `db.ts`의 `rest()`가 throw하는 예외를 라우트가 잡지 않아 **본문 없는 500**으로 노출 → 프런트가 "연결에 문제가 생겼어요"로 표시. 비밀번호와는 무관(어떤 값이든 500).
 - **Vercel 로그 실측**: `vercel logs`로 02:41~03:08 사이 `POST /api/login 500 ⨯ [TypeError: fetch failed]` 9건 확인. 복구 후 동일 경로 `200` 3건.
