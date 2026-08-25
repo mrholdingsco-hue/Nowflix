@@ -3,6 +3,16 @@
 > **프로젝트 상태: STEP 1~10 완료 — 릴리즈 빌드·서명·인계 문서까지 마감(v1.0.0).**
 > 산출물: `dist/nowflix-1.0.0.apk` (서명됨). 설치: `scripts/install.sh`. 인계 문서: `docs/`.
 
+## 장애 대응 (2026-08-25) — 관리자 웹 로그인 500 — 복구 완료 ✅
+- **원인**: Supabase 프로젝트 `nowflix-kiosk`(ref tyypds…)가 무료 플랜 **자동 일시정지(status=INACTIVE)**. 관리자 웹 `/api/login`은 `attemptLogin`→`getWebAuth()`→PostgREST fetch 경로인데, DB가 죽어 `TypeError: fetch failed`가 발생. `db.ts`의 `rest()`가 throw하는 예외를 라우트가 잡지 않아 **본문 없는 500**으로 노출 → 프런트가 "연결에 문제가 생겼어요"로 표시. 비밀번호와는 무관(어떤 값이든 500).
+- **Vercel 로그 실측**: `vercel logs`로 02:41~03:08 사이 `POST /api/login 500 ⨯ [TypeError: fetch failed]` 9건 확인. 복구 후 동일 경로 `200` 3건.
+- **조치**: Management API `POST /v1/projects/{ref}/restore`로 재개. INACTIVE → COMING_UP → **ACTIVE_HEALTHY**. 코드/환경변수 변경 없음, 재배포 불필요.
+- **Vercel 환경변수 5종**: `SUPABASE_URL`/`SUPABASE_ANON_KEY`/`SUPABASE_SERVICE_ROLE_KEY`/`YOUTUBE_API_KEY`/`SESSION_SECRET` 전부 production·preview·development 3개 타깃에 **존재**(production은 `sensitive` 타입이라 값 회수 불가 = 정상). 누락·변경 없음 → 이번 장애와 무관.
+- **로그인 실측**: 올바른 비번 → **200** `{"ok":true,"mustChangePassword":true}` + `nf_admin` 세션 쿠키(HttpOnly/Secure/SameSite=lax, 8시간). 틀린 비번 → **401** `{"error":"비밀번호가 올바르지 않아요."}`. 실패 후 성공으로 `failed_count` 정리됨.
+- **anon 키 조회 실측**: 앱이 실제로 쏘는 쿼리 그대로 — `parts`(6행)·`settings` 모두 **200**. `web_auth`는 anon에 `[]`(RLS enabled + anon 정책 없음) = **의도된 동작**, 서버는 service_role로 우회하므로 정상.
+- **태블릿 PIN(문제없음)**: `settings.admin_pin_hash` = `3b2c2d46…` = SHA-256(`739104`)로 **대조 확인**. 내장 fallback `000000`은 `KioskConfigRepository` 3단계 중 **원격 실패 + 온디스크 캐시(`kiosk_config.json`)까지 없을 때만** 도달(`bundledOnly`→`KioskSettings()`의 빈 해시→`PinGate.effectiveHash`→000000). 이미 한 번이라도 설정을 받은 기존 태블릿은 캐시가 남아 장애 중에도 **739104 유지**. 단, **장애 시간대에 공장초기화/신규 설치된 태블릿은 000000으로 떨어졌을 수 있음** → 해당 기기는 앱 재시작(또는 관리자 "설정 새로고침")으로 원격 설정을 받으면 739104로 복귀.
+- **재발 위험**: 무료 플랜은 비활성 7일이면 또 자동 일시정지됨. 병원 운영 중 재발하면 로그인 전면 불가 → 유료 플랜 전환 또는 주기적 핑(cron) 검토 필요. 별도로 `/api/login`이 DB 장애 시 500 대신 사용자 친화적 메시지를 주도록 예외 처리 보강 여지 있음(이번엔 미변경).
+
 ## STEP 10 (2026-08-04) — 릴리즈 빌드 · 서명 · 병원 인계 — DONE ✅
 - **서명 키**: `nowflix-release.jks`(별칭 `nowflix`, RSA-2048, 유효기간 30년=10950일, 비번 `nowflix-kiosk-2026`). 키·비번 **미커밋**(`.gitignore`의 `*.jks` + 서명값은 gitignored `local.properties`에만). `build.gradle.kts`가 `RELEASE_STORE_FILE/PASSWORD/KEY_ALIAS/KEY_PASSWORD`를 local.properties에서 읽어 주입하되 **`hasReleaseSigning` 가드**(키스토어 파일 있을 때만 `signingConfigs.create("release")`) → 키 없는 머신/CI는 미서명으로 빌드 계속. 인계문서에 "이 키 분실 시 기존 앱 위 업데이트 설치 불가" 명시.
 - **버전**: versionCode 1, versionName `0.1.0`→`1.0.0`. 관리자 화면은 `BuildConfig.VERSION_NAME`을 표시하므로 값이 자동 갱신(별도 하드코딩 없음, 실측 `aapt`: versionName='1.0.0').
