@@ -3,6 +3,42 @@
 > **프로젝트 상태: STEP 1~10 완료 — 릴리즈 빌드·서명·인계 문서까지 마감(v1.0.0).**
 > 산출물: `dist/nowflix-1.0.0.apk` (서명됨). 설치: `scripts/install.sh`. 인계 문서: `docs/`.
 
+## v1.1.0 예정 — 다음 릴리즈 항목 (2026-08-25 기준, 미배포)
+
+> 현재 병원 태블릿 5대에 설치된 것은 **v1.0.0** (`dist/nowflix-1.0.0.apk`, versionCode 1).
+> 아래 항목들은 **main 에 커밋·푸시는 됐지만 APK 로 나가지 않았습니다.**
+
+### 🔴 반드시 포함 — PIN 유예(grace) 수정 (커밋 `2812566`, **현재 미배포**)
+- **왜 필수인가**: 관리자 웹에서 PIN을 바꾸면 태블릿은 30분 주기 갱신 전까지 옛 해시만 압니다.
+  즉시 반영용 "설정 새로고침" 버튼은 **PIN 화면 뒤**에 있어, 새 PIN을 모르는 태블릿에는
+  들어갈 방법이 없는 **데드락**이 됩니다. v1.0.0 태블릿은 지금도 이 상태입니다.
+- **수정 내용**: 캐시 전용 `previous_admin_pin_hash`(유예 슬롯 1개, 무변화 갱신에서 이월) +
+  `PinGate.submit(alsoAcceptHash)`(최신·유예 둘 다 허용, 5회/30초 잠금 규칙 유지) +
+  PIN 화면 진입 시 원격 설정 즉시 재요청(실패는 무음).
+- **상태**: `:app:testDebugUnitTest` 100/100 통과. **APK 재빌드·재설치 전까지 효력 없음.**
+- **v1.0.0 태블릿의 임시 대처**(릴리즈 전까지): 30분 자동 갱신을 기다리거나,
+  옛 PIN `739104` 로 들어가 "설정 새로고침".
+
+### 함께 나가는 항목 (앱 외 — 이미 라이브, APK 무관)
+- `/api/login` DB 장애 시 500 → **503 + 한국어 안내** 분리 (관리자 웹, 이미 프로덕션 배포됨)
+- `.github/workflows/supabase-keepalive.yml` — 3일 주기 Supabase 자동 일시정지 방지 (앱 무관)
+
+### 릴리즈 전 해야 할 일
+- [ ] `app/build.gradle.kts` — `versionCode 1 → 2`, `versionName "1.0.0" → "1.1.0"`
+- [ ] `./gradlew assembleRelease` (keystore + `local.properties` 서명값 필요)
+- [ ] `apksigner verify` — 인증서 지문이 `A4:C7:38:…:B4:79` 와 동일한지 확인
+      (다르면 기존 앱 위 업데이트 설치 불가)
+- [ ] `dist/nowflix-1.1.0.apk` 산출 + `scripts/install.sh` 로 태블릿 5대 재설치 (`adb install -t`)
+- [ ] 실기기 검증: 웹에서 PIN 변경 → 태블릿에서 **새 PIN**과 **직전 PIN** 둘 다 통하는지
+      (VM에 기기가 없어 이 수정은 **아직 실기기 미검증**)
+- [ ] 릴리즈 후 `docs/운영가이드.md`·`docs/인계문서.md` 의 버전 표기 갱신
+
+### 미해결 / 확인 필요
+- GitHub Actions 탭에서 `supabase-keepalive` 수동 1회 실행 + 시크릿 2종 등록 확인 (VM에 토큰 없어 불가)
+- 계정 3종(Supabase/Vercel/Google) **병원 명의 이관** — `docs/인계문서.md` 2번 참고, 미착수
+- keystore `nowflix-release.jks` **이 VM에 1부뿐** — 백업 미완료 (`docs/인계문서.md` 6번 참고)
+- 임시 자산 삭제(`nowflix-ci-view` 등) — 목록만 작성, 미삭제 (`docs/인계문서.md` 9번 참고)
+
 ## PIN 갇힘 구조 제거 (2026-08-25) — DONE ✅ (배포 전)
 - **실측 확인 2건**: Supabase `settings.admin_pin_hash` = `75e8f9d3…` = **SHA-256("150302") 일치** → 관리자 웹 PIN 저장 로직(`api/settings/pin/route.ts`)은 **정상, 변경 없음**. anon 키로 앱과 동일 쿼리(`settings?select=…&id=eq.1`) → **HTTP 200** + 새 해시 정상 반환.
 - **진짜 원인**: 값 문제가 아니라 **반영 타이밍 데드락**. 태블릿은 30분 주기로만 설정을 갱신하는데, 즉시 반영용 "설정 새로고침" 버튼이 **PIN 화면 뒤**에 있어 새 PIN을 모르는 태블릿에 들어갈 방법이 없었음.
