@@ -17,7 +17,8 @@ sealed interface PinResult {
  * hand-cranking [clock]; the same class runs in the app with a monotonic clock.
  *
  * Rules (STEP 7 escape path #1):
- *  - [submit] hashes the entered PIN and compares it to [expectedHash].
+ *  - [submit] hashes the entered PIN and compares it to [expectedHash] (and to the previous
+ *    PIN, so a remote change never locks the staff out — see [submit]).
  *  - [MAX_ATTEMPTS] consecutive wrong PINs -> locked for [LOCKOUT_MS]. This bounds brute force
  *    but is NEVER permanent: once the window passes, the counter resets and input works again.
  *  - A correct PIN clears the failure counter.
@@ -31,13 +32,19 @@ class PinGate(private val clock: () -> Long) {
     private var failCount = 0
     private var lockedUntil = 0L
 
-    fun submit(pin: String, expectedHash: String): PinResult {
+    /**
+     * [alsoAcceptHash] is the PIN that was in force before the last remote change. Accepting it
+     * too means a staff member who changed the PIN in the admin web can still get in with the
+     * one they remember — the only refresh button lives behind this very screen.
+     */
+    fun submit(pin: String, expectedHash: String, alsoAcceptHash: String = ""): PinResult {
         val now = clock()
         if (now < lockedUntil) {
             return PinResult.LockedOut(secondsLeftFrom(now))
         }
 
-        return if (Sha256.hex(pin) == expectedHash) {
+        val entered = Sha256.hex(pin)
+        return if (entered == expectedHash || (alsoAcceptHash.isNotBlank() && entered == alsoAcceptHash)) {
             failCount = 0
             lockedUntil = 0L
             PinResult.Accepted

@@ -23,6 +23,10 @@ data class SettingsRow(
     @SerialName("idle_return_seconds") val idleReturnSeconds: Int = 120,
     @SerialName("admin_pin_hash") val adminPinHash: String? = null,
     @SerialName("header_text") val headerText: String? = null,
+    // Cache-only field: the PIN hash this tablet knew before the last remote change. Supabase
+    // never sends it (the kiosk selects the three columns above); the repository stamps it when
+    // it writes the cache, so an old PIN still opens the admin screen once after a remote change.
+    @SerialName("previous_admin_pin_hash") val previousAdminPinHash: String? = null,
 )
 
 @Serializable
@@ -36,6 +40,8 @@ data class KioskSettings(
     val idleReturnSeconds: Int = 120,
     val adminPinHash: String = "",
     val headerText: String = "",
+    /** PIN hash in force before the last remote change; also accepted by the gate. */
+    val previousAdminPinHash: String = "",
 )
 
 /** Everything the kiosk needs to render, whatever the source (remote / cache / assets). */
@@ -84,5 +90,6 @@ object KioskConfigMapper {
         idleReturnSeconds = idleReturnSeconds,
         adminPinHash = adminPinHash.orEmpty(),
         headerText = headerText.orEmpty(),
+        previousAdminPinHash = previousAdminPinHash.orEmpty(),
     )
 }

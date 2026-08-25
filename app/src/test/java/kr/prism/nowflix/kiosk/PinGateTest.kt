@@ -21,6 +21,24 @@ class PinGateTest {
         assertEquals(PinResult.Accepted, g.submit("739104", hash))
     }
 
+    // A PIN changed in the admin web must not lock the staff out: the previous PIN, carried in
+    // the on-disk cache, opens the gate too until they get in and the tablet catches up.
+    @Test
+    fun previousPinIsAlsoAccepted() {
+        val g = gate()
+        val newHash = Sha256.hex("150302")
+        assertEquals(PinResult.Accepted, g.submit("150302", newHash, alsoAcceptHash = hash)) // new PIN
+        assertEquals(PinResult.Accepted, g.submit("739104", newHash, alsoAcceptHash = hash)) // old PIN
+        assertEquals(PinResult.Rejected(4), g.submit("111111", newHash, alsoAcceptHash = hash))
+    }
+
+    // A blank grace hash must never match — an empty entered PIN hashes to something, not "".
+    @Test
+    fun blankPreviousHashMatchesNothing() {
+        val g = gate()
+        assertEquals(PinResult.Rejected(4), g.submit("000000", hash, alsoAcceptHash = ""))
+    }
+
     @Test
     fun wrongPinIsRejectedWithDecreasingAttempts() {
         val g = gate()

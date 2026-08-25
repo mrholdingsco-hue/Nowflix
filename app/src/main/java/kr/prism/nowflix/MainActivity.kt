@@ -246,6 +246,10 @@ fun KioskApp(
         var showAdmin by remember { mutableStateOf(false) }
         val pinGate = remember { PinGate(clock = { SystemClock.uptimeMillis() }) }
         LaunchedEffect(showPin, showAdmin) { onEscapeOverlayChanged(showPin || showAdmin) }
+        // Opening the PIN pad pulls the latest remote settings, so a PIN changed in the admin web
+        // works right away instead of waiting out the 30-minute cadence. Failures are silent
+        // (repo.load never throws) — the previously known PIN still opens the gate.
+        LaunchedEffect(showPin) { if (showPin) configHolder.refresh() }
 
         // Last successful remote-config receipt, stamped when a live fetch lands.
         var lastRemoteAt by remember { mutableStateOf<Long?>(null) }
@@ -358,6 +362,7 @@ fun KioskApp(
                         pinGate.submit(
                             pin,
                             PinGate.effectiveHash(config.settings.adminPinHash),
+                            alsoAcceptHash = config.settings.previousAdminPinHash,
                         )
                     },
                     lockedSecondsLeft = { pinGate.lockedSecondsLeft() },
