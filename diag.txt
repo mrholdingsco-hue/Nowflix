@@ -1,0 +1,235 @@
+############ screenshot dimensions (orientation check) ############
+---- screenshot dimensions ----
+01_main_6parts.png 2560x1688 LANDSCAPE
+02_main_8parts.png 2560x1688 LANDSCAPE
+03_video_list.png 2560x1688 LANDSCAPE
+04_player_controls_shown.png 2560x1688 LANDSCAPE
+05_player_controls_hidden.png 2560x1688 LANDSCAPE
+06_pin_pad.png 2560x1688 LANDSCAPE
+07_admin.png 2560x1688 LANDSCAPE
+08_player_fullscreen.png 2560x1688 LANDSCAPE
+portrait_captures=0
+
+############ device screenshots dir (adb ls) ############
+total 4320
+drwx------ 2 u0_a167 u0_a167    4096 2026-08-25 12:13 .
+drwxrwx--x 3 u0_a167 u0_a167    4096 2026-08-25 12:13 ..
+-rw------- 1 u0_a167 u0_a167 1481137 2026-08-25 12:12 01_main_6parts.png
+-rw------- 1 u0_a167 u0_a167 1482178 2026-08-25 12:12 02_main_8parts.png
+-rw------- 1 u0_a167 u0_a167  818374 2026-08-25 12:13 03_video_list.png
+-rw------- 1 u0_a167 u0_a167  193320 2026-08-25 12:13 04_player_controls_shown.png
+-rw------- 1 u0_a167 u0_a167  193729 2026-08-25 12:12 05_player_controls_hidden.png
+-rw------- 1 u0_a167 u0_a167   57278 2026-08-25 12:13 06_pin_pad.png
+-rw------- 1 u0_a167 u0_a167  104751 2026-08-25 12:12 07_admin.png
+-rw------- 1 u0_a167 u0_a167   32344 2026-08-25 12:13 08_player_fullscreen.png
+
+############ device-wide PNG search ############
+(not run — screenshots were found)
+
+############ screenshot-capture.log (FULL) ############
+INSTRUMENTATION_STATUS: class=kr.prism.nowflix.ScreenshotTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=
+kr.prism.nowflix.ScreenshotTest:
+INSTRUMENTATION_STATUS: test=mainScreen_8parts_horizontalScroll
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.prism.nowflix.ScreenshotTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=mainScreen_8parts_horizontalScroll
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=kr.prism.nowflix.ScreenshotTest
+INSTRUMENTATION_STATUS: current=2
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=playerScreen_controlsHidden
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.prism.nowflix.ScreenshotTest
+INSTRUMENTATION_STATUS: current=2
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=playerScreen_controlsHidden
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=kr.prism.nowflix.ScreenshotTest
+INSTRUMENTATION_STATUS: current=3
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=mainScreen_6parts
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.prism.nowflix.ScreenshotTest
+INSTRUMENTATION_STATUS: current=3
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=mainScreen_6parts
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=kr.prism.nowflix.ScreenshotTest
+INSTRUMENTATION_STATUS: current=4
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=adminScreen
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.prism.nowflix.ScreenshotTest
+INSTRUMENTATION_STATUS: current=4
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=adminScreen
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=kr.prism.nowflix.ScreenshotTest
+INSTRUMENTATION_STATUS: current=5
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=pinPadScreen
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.prism.nowflix.ScreenshotTest
+INSTRUMENTATION_STATUS: current=5
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=pinPadScreen
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=kr.prism.nowflix.ScreenshotTest
+INSTRUMENTATION_STATUS: current=6
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=playerScreen_fullscreen
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.prism.nowflix.ScreenshotTest
+INSTRUMENTATION_STATUS: current=6
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=playerScreen_fullscreen
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=kr.prism.nowflix.ScreenshotTest
+INSTRUMENTATION_STATUS: current=7
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=videoListScreen
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.prism.nowflix.ScreenshotTest
+INSTRUMENTATION_STATUS: current=7
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=videoListScreen
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=kr.prism.nowflix.ScreenshotTest
+INSTRUMENTATION_STATUS: current=8
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=playerScreen_controlsVisible
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=kr.prism.nowflix.ScreenshotTest
+INSTRUMENTATION_STATUS: current=8
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=8
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=playerScreen_controlsVisible
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_RESULT: stream=
+
+Time: 34.016
+
+OK (8 tests)
+
+
+INSTRUMENTATION_CODE: -1
+
+############ androidTest JUnit failures/errors ############
+
+############ instrumented logcat: crashes (FATAL/AndroidRuntime) ############
+08-25 12:10:06.053   318   318 I HidlServiceManagement: Registered android.hardware.graphics.composer@2.3::IComposer/default (start delay of 330ms)
+08-25 12:10:06.192   342   342 I SurfaceFlinger: Using HWComposer service: 'default'
+08-25 12:10:06.246   318   318 I ComposerResources: failed to get mapper 4.0 service, falling back to mapper 3.0
+08-25 12:10:06.249   342   342 E HWComposer: loadLayerMetadataSupport: getLayerGenericMetadataKeys failed: UNSUPPORTED (8)
+08-25 12:10:06.249   342   342 I HWComposer: Switching to generalized multi-display mode
+08-25 12:10:06.249   342   342 E HWComposer: isConnected failed for display 8141241408256768: Invalid display
+08-25 12:10:06.250   342   342 E HWComposer: getDisplayConnectionType: getDisplayConnectionType failed for display 8141241408256768: Unsupported (8)
+08-25 12:10:06.252   342   342 W HwcComposer: getPerFrameMetadataKeys failed with 8
+08-25 12:10:06.458   285   285 D AndroidRuntime: >>>>>> START com.android.internal.os.ZygoteInit uid 0 <<<<<<
+08-25 12:10:06.537   285   285 I AndroidRuntime: Using default boot image
+08-25 12:10:06.537   285   285 I AndroidRuntime: Leaving lock profiling enabled
+08-25 12:10:06.745   286   286 D AndroidRuntime: >>>>>> START com.android.internal.os.ZygoteInit uid 0 <<<<<<
+08-25 12:10:06.786   286   286 I AndroidRuntime: Using default boot image
+08-25 12:10:06.786   286   286 I AndroidRuntime: Leaving lock profiling enabled
+08-25 12:10:09.105   342   550 E HWComposer: getSupportedContentTypes: getSupportedContentTypes failed for display 8141241408256768: Unsupported (8)
+08-25 12:10:14.819   847   847 I AndroidRuntime: VM exiting with result code 0, cleanup skipped.
+08-25 12:10:14.917   859   859 I AndroidRuntime: VM exiting with result code 0, cleanup skipped.
+08-25 12:10:25.371  1630  1630 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+08-25 12:10:25.461  1630  1630 I AndroidRuntime: Using default boot image
+08-25 12:10:25.461  1630  1630 I AndroidRuntime: Leaving lock profiling enabled
+08-25 12:10:28.296  1630  1630 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+08-25 12:10:31.248  1630  1630 D AndroidRuntime: Shutting down VM
+08-25 12:12:39.586  6170  6170 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 0 <<<<<<
+08-25 12:12:39.598  6170  6170 I AndroidRuntime: Using default boot image
+08-25 12:12:39.599  6170  6170 I AndroidRuntime: Leaving lock profiling enabled
+08-25 12:12:39.824  6170  6170 D AndroidRuntime: Calling main entry com.android.commands.am.Am
+08-25 12:13:14.696  6170  6170 I AndroidRuntime: VM exiting with result code 0.
+
+############ connected.log (tail) ############
+> Task :app:mergeProjectDexDebugAndroidTest UP-TO-DATE
+> Task :app:mergeDebugAndroidTestGlobalSynthetics UP-TO-DATE
+> Task :app:packageDebugAndroidTest UP-TO-DATE
+> Task :app:createDebugAndroidTestApkListingFileRedirect UP-TO-DATE
+[EmulatorConsole]: Failed to start Emulator console for 5554
+
+> Task :app:connectedDebugAndroidTest
+Starting 21 tests on emulator-5554 - 11
+
+emulator-5554 - 11 Tests 4/21 completed. (0 skipped) (0 failed)
+emulator-5554 - 11 Tests 5/21 completed. (0 skipped) (0 failed)
+emulator-5554 - 11 Tests 7/21 completed. (0 skipped) (0 failed)
+emulator-5554 - 11 Tests 9/21 completed. (0 skipped) (0 failed)
+emulator-5554 - 11 Tests 10/21 completed. (0 skipped) (0 failed)
+emulator-5554 - 11 Tests 11/21 completed. (0 skipped) (0 failed)
+emulator-5554 - 11 Tests 13/21 completed. (0 skipped) (0 failed)
+emulator-5554 - 11 Tests 15/21 completed. (0 skipped) (0 failed)
+emulator-5554 - 11 Tests 17/21 completed. (0 skipped) (0 failed)
+emulator-5554 - 11 Tests 19/21 completed. (0 skipped) (0 failed)
+emulator-5554 - 11 Tests 21/21 completed. (0 skipped) (0 failed)
+Finished 21 tests on emulator-5554 - 11
+
+BUILD SUCCESSFUL in 2m 12s
+67 actionable tasks: 1 executed, 66 up-to-date
+Configuration cache entry stored.
+
+############ kiosk logcat (tail) ############
+08-25 12:11:57.860  4976  5321 W YouTube : 	at zmp.run(Unknown Source:18)
+08-25 12:11:57.860  4976  5321 W YouTube : 	... 4 more
+08-25 12:11:57.860  4976  5321 W YouTube : Caused by: btc
+08-25 12:11:57.860  4976  5321 W YouTube : 	at zmp.run(Unknown Source:6)
+08-25 12:11:57.860  4976  5321 W YouTube : 	... 4 more
+08-25 12:11:57.868  1156  3423 W Conscrypt: Could not set socket write timeout: java.net.SocketException: Socket closed
+08-25 12:11:57.868  1156  3423 W Conscrypt: 	at com.google.android.gms.org.conscrypt.Platform.setSocketWriteTimeout(:com.google.android.gms@201817023@20.18.17 (040800-311416286):2)
+08-25 12:11:57.868  1156  3423 W Conscrypt: 	at com.google.android.gms.org.conscrypt.ConscryptFileDescriptorSocket.setSoWriteTimeout(:com.google.android.gms@201817023@20.18.17 (040800-311416286):0)
+08-25 12:11:57.870  1698  1752 I MediaProvider: Scanned external_primary due to REASON_DEMAND, found 0 items in 6ms, 0 inserts 0 updates 0 deletes
+08-25 12:11:57.883  1566  1566 I PhenotypeModule: PhenotypeModule.receiveBroadcast():356 onReceive() urgent = false
+08-25 12:11:57.883  1566  1566 I PhenotypeModule: PhenotypeModule.maybeFetchAndUpdate():167 maybeFetchAndUpdate: forceRefresh=false
+08-25 12:11:57.906  1156  3423 W GLSUser : [AppCertManager] IOException while requesting key: 
+08-25 12:11:57.906  1156  3423 W GLSUser : java.io.IOException: Invalid device key response.
+08-25 12:11:57.906  1156  3423 W GLSUser : 	at huk.a(:com.google.android.gms@201817023@20.18.17 (040800-311416286):46)
+08-25 12:11:57.906  1156  3423 W GLSUser : 	at hui.a(:com.google.android.gms@201817023@20.18.17 (040800-311416286):41)
+08-25 12:11:57.906  1156  3423 W GLSUser : 	at hud.a(:com.google.android.gms@201817023@20.18.17 (040800-311416286):0)
+08-25 12:11:57.906  1156  3423 W GLSUser : 	at hug.a(:com.google.android.gms@201817023@20.18.17 (040800-311416286):10)
+08-25 12:11:57.906  1156  3423 W GLSUser : 	at fzn.call(:com.google.android.gms@201817023@20.18.17 (040800-311416286):5)
+08-25 12:11:57.906  1156  3423 W GLSUser : 	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+08-25 12:11:57.906  1156  3423 W GLSUser : 	at sji.b(:com.google.android.gms@201817023@20.18.17 (040800-311416286):12)
+08-25 12:11:57.906  1156  3423 W GLSUser : 	at sji.run(:com.google.android.gms@201817023@20.18.17 (040800-311416286):7)
+08-25 12:11:57.906  1156  3423 W GLSUser : 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1167)
+08-25 12:11:57.906  1156  3423 W GLSUser : 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:641)
+08-25 12:11:57.906  1156  3423 W GLSUser : 	at spj.run(:com.google.android.gms@201817023@20.18.17 (040800-311416286):0)
+08-25 12:11:57.906  1156  3423 W GLSUser : 	at java.lang.Thread.run(Thread.java:923)

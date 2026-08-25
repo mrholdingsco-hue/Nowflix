@@ -1,0 +1,66 @@
+run_id=32845969687
+instrumented_result=success
+kiosk_result=success
+png_count=8
+--- downloaded artifact tree ---
+dl/diag/app/build/outputs/androidTest-results/connected/debug/TEST-emulator-5554 - 11-_app-.xml
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/aapt.1.ok.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/aapt.2.ok.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/aapt.3.ok.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/aapt.4.ok.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/cpuinfo
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/device-info.pb
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/logcat-kr.prism.nowflix.ConfigNetworkTest-config_loadsEightParts_fromRemote.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/logcat-kr.prism.nowflix.ConfigNetworkTest-config_loadsSixParts_fromRemote.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/logcat-kr.prism.nowflix.ConfigNetworkTest-playlist_streamsEightVideos_withDurationAndViews.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/logcat-kr.prism.nowflix.KioskFlowTest-cardTap_opensVideoList.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/logcat-kr.prism.nowflix.KioskFlowTest-longPress_topRight_opensPin_onHome.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/logcat-kr.prism.nowflix.KioskFlowTest-longPress_topRight_opensPin_overPlayer.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/logcat-kr.prism.nowflix.KioskFlowTest-videoList_backToMain_returnsHome.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/logcat-kr.prism.nowflix.KioskFlowTest-wrongPin_fiveTimes_locksOut.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/logcat-kr.prism.nowflix.PlayerScreenTest-fullscreen_backPress_leavesFullscreenBeforeLeavingThePlayer.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/logcat-kr.prism.nowflix.PlayerScreenTest-fullscreen_hidesUpNextAndMeta_keepsBackAndProgress.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/logcat-kr.prism.nowflix.PlayerScreenTest-fullscreen_survivesAVideoChange.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/logcat-kr.prism.nowflix.PlayerScreenTest-fullscreen_touchShield_coversTheEnlargedStage.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/logcat-kr.prism.nowflix.PlayerScreenTest-touchShield_tap_revealsControls_andStaysInPlayer.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/logcat-kr.prism.nowflix.ScreenshotTest-adminScreen.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/logcat-kr.prism.nowflix.ScreenshotTest-mainScreen_6parts.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/logcat-kr.prism.nowflix.ScreenshotTest-mainScreen_8parts_horizontalScroll.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/logcat-kr.prism.nowflix.ScreenshotTest-pinPadScreen.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/logcat-kr.prism.nowflix.ScreenshotTest-playerScreen_controlsHidden.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/logcat-kr.prism.nowflix.ScreenshotTest-playerScreen_controlsVisible.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/logcat-kr.prism.nowflix.ScreenshotTest-playerScreen_fullscreen.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/logcat-kr.prism.nowflix.ScreenshotTest-videoListScreen.txt
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/meminfo
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/profiling/emulator-5554_profile.pb
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/test-result.pb
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/test-result.textproto
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/testlog/test-results.log
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/utp.0.log
+dl/diag/app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 11/utp.0.log.lck
+dl/diag/app/build/outputs/androidTest-results/connected/debug/test-result.pb
+dl/diag/connected.log
+dl/diag/device-screenshots-ls.txt
+dl/diag/instrumented-logcat.txt
+dl/diag/screenshot-capture.log
+dl/diag/screenshot-dims.txt
+dl/kiosk-log/kiosk-logcat.txt
+dl/kiosk/kiosk-summary.txt
+dl/screenshots/contact-sheet.png
+dl/screenshots/screenshots/01_main_6parts.png
+dl/screenshots/screenshots/02_main_8parts.png
+dl/screenshots/screenshots/03_video_list.png
+dl/screenshots/screenshots/04_player_controls_shown.png
+dl/screenshots/screenshots/05_player_controls_hidden.png
+dl/screenshots/screenshots/06_pin_pad.png
+dl/screenshots/screenshots/07_admin.png
+dl/screenshots/screenshots/08_player_fullscreen.png
+--- screenshots staged ---
+01_main_6parts.png
+02_main_8parts.png
+03_video_list.png
+04_player_controls_shown.png
+05_player_controls_hidden.png
+06_pin_pad.png
+07_admin.png
+08_player_fullscreen.png

@@ -1,0 +1,27 @@
+PASS  (1) FULL_LOCK mode entered
+PASS  (2) lock task active
+PASS  (3) HOME + RECENTS ignored (still focused on kiosk)
+PASS  (4) status bar / shade blocked
+PASS  (5) device owner released
+PASS  (6) lock task released, device usable again
+RESULT: 6 passed, 0 failed
+
+---- DIAGNOSTICS (window/activity state) ----
+===== after launch =====
+    mCurrentFocus=Window{569ffa8 u0 kr.prism.nowflix/kr.prism.nowflix.MainActivity}
+    mFocusedApp=ActivityRecord{3e5d482 u0 kr.prism.nowflix/.MainActivity t9}
+      mResumedActivity: ActivityRecord{3e5d482 u0 kr.prism.nowflix/.MainActivity t9}
+    ResumedActivity: ActivityRecord{3e5d482 u0 kr.prism.nowflix/.MainActivity t9}
+      mLockTaskModeState=LOCKED
+===== after HOME+RECENTS =====
+    mCurrentFocus=Window{569ffa8 u0 kr.prism.nowflix/kr.prism.nowflix.MainActivity}
+    mFocusedApp=ActivityRecord{3e5d482 u0 kr.prism.nowflix/.MainActivity t9}
+      mResumedActivity: ActivityRecord{3e5d482 u0 kr.prism.nowflix/.MainActivity t9}
+    ResumedActivity: ActivityRecord{3e5d482 u0 kr.prism.nowflix/.MainActivity t9}
+      mLockTaskModeState=LOCKED
+===== after shade attempt =====
+    mCurrentFocus=Window{569ffa8 u0 kr.prism.nowflix/kr.prism.nowflix.MainActivity}
+    mFocusedApp=ActivityRecord{3e5d482 u0 kr.prism.nowflix/.MainActivity t9}
+      mResumedActivity: ActivityRecord{3e5d482 u0 kr.prism.nowflix/.MainActivity t9}
+    ResumedActivity: ActivityRecord{3e5d482 u0 kr.prism.nowflix/.MainActivity t9}
+      mLockTaskModeState=LOCKED

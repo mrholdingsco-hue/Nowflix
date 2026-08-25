@@ -1,0 +1,3 @@
+source_commit=516e5889a75f3ab495e3ad21b0685b198122c951
+captured_at=2026-08-25T12:16:11Z
+screenshot_count=8

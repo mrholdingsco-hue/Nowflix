@@ -1,0 +1,29 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<testsuite name="kr.prism.nowflix.ConfigNetworkTest" tests="21" failures="0" errors="0" skipped="0" time="110.332" timestamp="2026-08-25T12:15:27" hostname="localhost">
+  <properties>
+    <property name="device" value="emulator-5554 - 11" />
+    <property name="flavor" value="" />
+    <property name="project" value=":app" />
+  </properties>
+  <testcase name="playlist_streamsEightVideos_withDurationAndViews" classname="kr.prism.nowflix.ConfigNetworkTest" time="0.112" />
+  <testcase name="config_loadsEightParts_fromRemote" classname="kr.prism.nowflix.ConfigNetworkTest" time="0.079" />
+  <testcase name="config_loadsSixParts_fromRemote" classname="kr.prism.nowflix.ConfigNetworkTest" time="0.103" />
+  <testcase name="longPress_topRight_opensPin_onHome" classname="kr.prism.nowflix.KioskFlowTest" time="2.747" />
+  <testcase name="wrongPin_fiveTimes_locksOut" classname="kr.prism.nowflix.KioskFlowTest" time="10.053" />
+  <testcase name="videoList_backToMain_returnsHome" classname="kr.prism.nowflix.KioskFlowTest" time="3.559" />
+  <testcase name="longPress_topRight_opensPin_overPlayer" classname="kr.prism.nowflix.KioskFlowTest" time="5.429" />
+  <testcase name="cardTap_opensVideoList" classname="kr.prism.nowflix.KioskFlowTest" time="3.353" />
+  <testcase name="fullscreen_survivesAVideoChange" classname="kr.prism.nowflix.PlayerScreenTest" time="4.992" />
+  <testcase name="fullscreen_hidesUpNextAndMeta_keepsBackAndProgress" classname="kr.prism.nowflix.PlayerScreenTest" time="5.945" />
+  <testcase name="fullscreen_backPress_leavesFullscreenBeforeLeavingThePlayer" classname="kr.prism.nowflix.PlayerScreenTest" time="5.543" />
+  <testcase name="fullscreen_touchShield_coversTheEnlargedStage" classname="kr.prism.nowflix.PlayerScreenTest" time="6.323" />
+  <testcase name="touchShield_tap_revealsControls_andStaysInPlayer" classname="kr.prism.nowflix.PlayerScreenTest" time="4.695" />
+  <testcase name="mainScreen_8parts_horizontalScroll" classname="kr.prism.nowflix.ScreenshotTest" time="4.076" />
+  <testcase name="playerScreen_controlsHidden" classname="kr.prism.nowflix.ScreenshotTest" time="3.937" />
+  <testcase name="mainScreen_6parts" classname="kr.prism.nowflix.ScreenshotTest" time="3.85" />
+  <testcase name="adminScreen" classname="kr.prism.nowflix.ScreenshotTest" time="3.042" />
+  <testcase name="pinPadScreen" classname="kr.prism.nowflix.ScreenshotTest" time="3.342" />
+  <testcase name="playerScreen_fullscreen" classname="kr.prism.nowflix.ScreenshotTest" time="5.45" />
+  <testcase name="videoListScreen" classname="kr.prism.nowflix.ScreenshotTest" time="3.52" />
+  <testcase name="playerScreen_controlsVisible" classname="kr.prism.nowflix.ScreenshotTest" time="4.689" />
+</testsuite>
