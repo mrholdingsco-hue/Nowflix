@@ -133,6 +133,9 @@ export async function updateSettings(
 // ---------------------------------------------------------------------------
 export async function getWebAuth(): Promise<WebAuthRow> {
   const rows = (await rest("web_auth?id=eq.1&select=*")) as WebAuthRow[];
+  // 행이 비어 있으면 DB 상태 자체가 잘못된 것이다. 여기서 명시적으로 던져야 호출부(로그인)가
+  // "비밀번호 불일치"가 아니라 "서버 문제"로 처리할 수 있다.
+  if (!rows[0]) throw new Error("web_auth row (id=1) not found");
   return rows[0];
 }
 

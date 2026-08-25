@@ -1,0 +1,74 @@
+name: supabase-keepalive
+
+# Supabase 무료 플랜은 7일 동안 아무 요청도 없으면 프로젝트를 자동 일시정지한다.
+# 그러면 관리자 웹 로그인이 전면 불가해진다(2026-08-25 장애). 3일마다 가벼운 select 를
+# 한 번 날려 "활동 중" 상태를 유지한다. 3일 주기 = 7일 한도의 절반 이하라 한 번 걸러도 안전하다.
+on:
+  schedule:
+    # 매월 1·4·7…28·31일 02:17 UTC (한국시간 11:17). 분을 0 이 아닌 값으로 둬서
+    # 정각에 몰리는 GitHub 스케줄 지연을 피한다.
+    - cron: "17 2 */3 * *"
+  workflow_dispatch:
+
+concurrency:
+  group: supabase-keepalive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    name: Ping Supabase
+    runs-on: ubuntu-latest
+    steps:
+      # anon 키는 저장소에 없다. Actions 시크릿으로만 주입된다.
+      - name: Check required secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          missing=""
+          [ -n "$SUPABASE_URL" ] || missing="$missing SUPABASE_URL"
+          [ -n "$SUPABASE_ANON_KEY" ] || missing="$missing SUPABASE_ANON_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::필수 시크릿 누락:$missing"
+            echo "Settings > Secrets and variables > Actions 에 등록하세요."
+            echo "  SUPABASE_URL       = https://<프로젝트ref>.supabase.co"
+            echo "  SUPABASE_ANON_KEY  = Supabase 대시보드 > Settings > API > anon public"
+            exit 1
+          fi
+
+      # anon 키로 읽을 수 있는 settings 테이블에서 id 한 칸만 읽는다(RLS 통과, 전송량 최소).
+      # 일시적인 네트워크 오류로 빨간 불이 켜지지 않도록 조용히 재시도하고,
+      # 3회 연속 실패했을 때만 워크플로를 실패로 표시해 눈에 띄게 한다.
+      - name: Wake project with a lightweight select
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -u
+          ATTEMPTS=3
+          GAP=60
+          fails=0
+          for i in $(seq 1 "$ATTEMPTS"); do
+            # 응답 본문은 버리고 상태 코드만 본다. 키가 로그에 남을 여지를 없앤다.
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
+              -H "apikey: $SUPABASE_ANON_KEY" \
+              -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+              "$SUPABASE_URL/rest/v1/settings?select=id&limit=1" 2>/dev/null) || code="000"
+            if [ "$code" = "200" ]; then
+              echo "시도 $i/$ATTEMPTS: HTTP 200 — Supabase 정상 응답. 프로젝트를 깨워뒀습니다."
+              echo "결과: 정상 (시도 $i 회차에서 성공)" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            fails=$((fails + 1))
+            # 조용히 넘어가는 구간: 경고만 남기고 실패로 만들지 않는다.
+            echo "::warning::시도 $i/$ATTEMPTS 실패 (HTTP $code). 재시도합니다."
+            if [ "$i" -lt "$ATTEMPTS" ]; then sleep "$GAP"; fi
+          done
+          echo "::error::Supabase 핑 $fails 회 연속 실패 (마지막 HTTP $code). 프로젝트가 일시정지되었거나 중단된 상태일 수 있습니다."
+          {
+            echo "결과: **실패** — $fails 회 연속 응답 없음 (마지막 HTTP $code)"
+            echo ""
+            echo "확인 순서: docs/인계문서.md 의 \"Supabase 자동 일시정지\" 항목을 따라"
+            echo "Supabase 대시보드에서 프로젝트를 다시 시작(Restore)하세요."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
