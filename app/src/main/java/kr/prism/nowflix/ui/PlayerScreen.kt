@@ -10,27 +10,30 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -51,14 +54,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
@@ -86,6 +92,11 @@ private val BottomScrim = Brush.verticalGradient(
 private val TrackRemaining = Color(0x4DFFFFFF) // white @ 30%
 private val ProgressRed = Color(0xFFFF0000)
 private const val CONTROLS_TIMEOUT_MS = 3000L
+// Fullscreen enter/exit. The brief caps the transition at 200ms; 180 leaves headroom for the
+// frame the layout change lands on and still reads as a glide rather than a jump.
+private const val FULLSCREEN_ANIM_MS = 180
+// Width the up-next column takes in the normal (non-fullscreen) layout.
+private const val UP_NEXT_WEIGHT = 0.35f
 
 /**
  * Full-screen player. The user should feel they are inside the YouTube app while being
@@ -102,6 +113,10 @@ fun PlayerScreen(
     onAutoAdvance: () -> Boolean = { false },
     // The user deliberately changed video (next button / row pick) — never an auto-advance.
     onManualNav: () -> Unit = {},
+    // Fullscreen chrome: the up-next list and the title/meta block are dropped and the video
+    // fills the screen. Owned by the host (KioskNavState) so the idle return clears it too.
+    isFullscreen: Boolean = false,
+    onToggleFullscreen: () -> Unit = {},
 ) {
     if (videos.isEmpty()) {
         // Nothing to play — treat as "return to the list".
@@ -109,8 +124,9 @@ fun PlayerScreen(
         return
     }
 
-    // Android back gesture on the player only ever returns to the list.
-    BackHandler(enabled = true) { onBack() }
+    // Android back gesture: in fullscreen the first press only leaves fullscreen (so the gesture
+    // never yanks a viewer all the way out of the video); a second press returns to the list.
+    BackHandler(enabled = true) { if (isFullscreen) onToggleFullscreen() else onBack() }
 
     var currentIndex by remember { mutableIntStateOf(startIndex.coerceIn(0, videos.lastIndex)) }
     var player by remember { mutableStateOf<YouTubePlayer?>(null) }
@@ -181,51 +197,81 @@ fun PlayerScreen(
         p.loadVideo(videos[currentIndex].videoId, 0f)
     }
 
-    Row(
+    // One animated value drives the whole transition (0 = normal, 1 = fullscreen): the up-next
+    // column's width shrinks to nothing and the stage grows into it — sideways and downwards at
+    // the same time, so the picture glides instead of snapping to full height first.
+    val progress by animateFloatAsState(
+        targetValue = if (isFullscreen) 1f else 0f,
+        animationSpec = tween(FULLSCREEN_ANIM_MS),
+        label = "fullscreen",
+    )
+    val upNextWeight = UP_NEXT_WEIGHT * (1f - progress)
+
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(Background),
     ) {
-        // Left ~65%: player + title/meta.
-        Column(
-            modifier = Modifier
-                .weight(0.65f)
-                .fillMaxHeight(),
-        ) {
-            PlayerStage(
-                listener = listener,
-                isPlaying = isPlaying,
-                currentSec = currentSec,
-                durationSec = durationSec,
-                scrubbing = scrubbing,
-                showNext = !PlaybackQueue.isLast(currentIndex, videos.size),
-                onTogglePlay = {
-                    player?.let { if (isPlaying) it.pause() else it.play() }
-                },
-                onSeek = { fraction ->
-                    player?.seekTo(PlayerProgress.seekSeconds(fraction, durationSec.floatValue))
-                },
-                onNext = { advanceManual() },
-                onBack = onBack,
-            )
-            NowPlayingMeta(video = videos[currentIndex], now = now)
-        }
+        // The stage is 16:9 at the top of its column normally and the whole screen in fullscreen;
+        // interpolating between those two heights is what makes the growth continuous.
+        val playerColumnWidth = maxWidth * (1f - upNextWeight)
+        val stageHeight = lerp(playerColumnWidth * 9f / 16f, maxHeight, progress)
 
-        // Right ~35%: "다음 동영상" up-next list, current at top and highlighted.
-        UpNextList(
-            videos = videos,
-            currentIndex = currentIndex,
-            now = now,
-            onSelect = { index -> onManualNav(); currentIndex = index },
-            modifier = Modifier
-                .weight(0.35f)
-                .fillMaxHeight(),
-        )
+        Row(modifier = Modifier.fillMaxSize()) {
+            // Left ~65%: player + title/meta. Grows to the full width in fullscreen.
+            Column(
+                modifier = Modifier
+                    .weight(1f - upNextWeight)
+                    .fillMaxHeight(),
+            ) {
+                PlayerStage(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(stageHeight),
+                    listener = listener,
+                    isPlaying = isPlaying,
+                    currentSec = currentSec,
+                    durationSec = durationSec,
+                    scrubbing = scrubbing,
+                    showNext = !PlaybackQueue.isLast(currentIndex, videos.size),
+                    onTogglePlay = {
+                        player?.let { if (isPlaying) it.pause() else it.play() }
+                    },
+                    onSeek = { fraction ->
+                        player?.seekTo(PlayerProgress.seekSeconds(fraction, durationSec.floatValue))
+                    },
+                    onNext = { advanceManual() },
+                    onBack = onBack,
+                    isFullscreen = isFullscreen,
+                    onToggleFullscreen = onToggleFullscreen,
+                )
+                // The stage eats the whole column once fullscreen, so the meta block only exists while
+                // there is room under it — i.e. once the transition has essentially landed back.
+                if (progress < 0.02f) {
+                    NowPlayingMeta(video = videos[currentIndex], now = now)
+                }
+            }
+
+            // Right ~35%: "다음 동영상" up-next list, current at top and highlighted. Dropped once the
+            // collapsing column is too narrow to render anything meaningful (and always in fullscreen).
+            if (upNextWeight > 0.02f) {
+                UpNextList(
+                    videos = videos,
+                    currentIndex = currentIndex,
+                    now = now,
+                    onSelect = { index -> onManualNav(); currentIndex = index },
+                    modifier = Modifier
+                        .weight(upNextWeight)
+                        .fillMaxHeight(),
+                )
+            }
+        }
     }
 }
 
 @Composable
 private fun PlayerStage(
+    modifier: Modifier,
     listener: AbstractYouTubePlayerListener,
     isPlaying: Boolean,
     currentSec: MutableFloatState,
@@ -236,6 +282,8 @@ private fun PlayerStage(
     onSeek: (Float) -> Unit,
     onNext: () -> Unit,
     onBack: () -> Unit,
+    isFullscreen: Boolean,
+    onToggleFullscreen: () -> Unit,
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     var controlsVisible by remember { mutableStateOf(true) }
@@ -254,11 +302,10 @@ private fun PlayerStage(
         interactionTick++
     }
 
+    // Everything below — WebView, touch shield, controls — is sized by this Box, so the shield
+    // grows with the stage and still covers the whole embed in fullscreen.
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(16f / 9f)
-            .background(Color.Black),
+        modifier = modifier.background(Color.Black),
     ) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
@@ -366,7 +413,15 @@ private fun PlayerStage(
                     fontWeight = FontWeight.Medium,
                 )
                 Spacer(Modifier.weight(1f))
+                // Visible label, never a hidden gesture: lobby users are elderly and will not find
+                // an invisible control. Lives in the always-on bottom bar, so the way back out of
+                // fullscreen never disappears.
+                FullscreenButton(
+                    isFullscreen = isFullscreen,
+                    onClick = { revealControls(); onToggleFullscreen() },
+                )
                 if (showNext) {
+                    Spacer(Modifier.width(8.dp))
                     NextButton(onClick = { revealControls(); onNext() })
                 }
             }
@@ -539,6 +594,69 @@ private fun NextButton(onClick: () -> Unit) {
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
         )
+    }
+}
+
+/**
+ * "전체화면" / "작게 보기". Icon + Korean label, because an icon alone is not readable to the
+ * lobby's users. The icon is drawn (not a font glyph or an extra icon dependency) so it renders
+ * identically on every device, like the rest of the player's controls.
+ */
+@Composable
+private fun FullscreenButton(isFullscreen: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(ControlScrim)
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        FullscreenIcon(shrink = isFullscreen)
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = if (isFullscreen) "작게 보기" else "전체화면",
+            color = Color.White,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+/**
+ * Four corner brackets. [shrink] false draws them on the outer edge ("make it big"), true draws a
+ * smaller frame inside ("make it small") — the size of the frame is the signal, so the two states
+ * are told apart at a glance rather than by arrow direction.
+ */
+@Composable
+private fun FullscreenIcon(shrink: Boolean, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.size(14.dp)) {
+        val stroke = 1.6.dp.toPx()
+        val inset = if (shrink) size.minDimension * 0.28f else stroke / 2f
+        val arm = size.minDimension * 0.30f
+        // The four bracket corners, each with the direction its two arms run toward the centre.
+        val corners = listOf(
+            Offset(inset, inset) to Offset(1f, 1f),
+            Offset(size.width - inset, inset) to Offset(-1f, 1f),
+            Offset(inset, size.height - inset) to Offset(1f, -1f),
+            Offset(size.width - inset, size.height - inset) to Offset(-1f, -1f),
+        )
+        corners.forEach { (corner, dir) ->
+            drawLine(
+                color = Color.White,
+                start = corner,
+                end = Offset(corner.x + arm * dir.x, corner.y),
+                strokeWidth = stroke,
+                cap = StrokeCap.Round,
+            )
+            drawLine(
+                color = Color.White,
+                start = corner,
+                end = Offset(corner.x, corner.y + arm * dir.y),
+                strokeWidth = stroke,
+                cap = StrokeCap.Round,
+            )
+        }
     }
 }
 

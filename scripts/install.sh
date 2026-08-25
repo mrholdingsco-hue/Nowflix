@@ -13,7 +13,7 @@
 # 모든 오류 메시지는 한국어로 원인과 다음 행동을 알려준다.
 #
 # 사용법:  ./scripts/install.sh [APK경로]
-#   APK 경로를 생략하면 dist/nowflix-1.0.0.apk → 없으면 release APK 를 자동으로 찾는다.
+#   APK 경로를 생략하면 dist/ 안의 nowflix-*.apk 중 가장 최신 버전 → 없으면 release APK 를 찾는다.
 
 set -u
 
@@ -32,13 +32,15 @@ fail() { echo; echo "  ❌ $*"; echo; exit 1; }
 # ── APK 경로 결정 ─────────────────────────────────────────────
 APK="${1:-}"
 if [ -z "$APK" ]; then
-  if   [ -f "$HERE/dist/nowflix-1.0.0.apk" ]; then APK="$HERE/dist/nowflix-1.0.0.apk"
-  elif [ -f "$HERE/app/build/outputs/apk/release/app-release.apk" ]; then APK="$HERE/app/build/outputs/apk/release/app-release.apk"
+  # 버전이 올라가도 스크립트를 고칠 필요가 없도록, dist/ 안의 nowflix-*.apk 중 버전이 가장 높은 것을 쓴다.
+  APK=$(ls "$HERE"/dist/nowflix-*.apk 2>/dev/null | sort -V | tail -1)
+  if [ -z "$APK" ] && [ -f "$HERE/app/build/outputs/apk/release/app-release.apk" ]; then
+    APK="$HERE/app/build/outputs/apk/release/app-release.apk"
   fi
 fi
 [ -n "$APK" ] && [ -f "$APK" ] || fail "설치할 APK 파일을 찾지 못했습니다.
-     dist/nowflix-1.0.0.apk 가 있는지 확인하거나, 경로를 직접 넘겨주세요:
-       ./scripts/install.sh /경로/nowflix-1.0.0.apk"
+     dist/ 폴더에 nowflix-1.1.0.apk 가 있는지 확인하거나, 경로를 직접 넘겨주세요:
+       ./scripts/install.sh /경로/nowflix-1.1.0.apk"
 
 # ── adb 존재 확인 ─────────────────────────────────────────────
 command -v adb >/dev/null 2>&1 || fail "PC에 adb(안드로이드 플랫폼툴)가 설치되어 있지 않습니다.

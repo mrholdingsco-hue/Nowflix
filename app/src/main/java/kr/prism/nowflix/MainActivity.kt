@@ -320,6 +320,10 @@ fun KioskApp(
                         goHomeNow
                     },
                     onManualNav = { machine.onManualNext() },
+                    // Fullscreen lives in nav, so the idle return (returnToHome) drops it with
+                    // everything else, while an auto-advance — which never touches nav — keeps it.
+                    isFullscreen = nav.isFullscreen,
+                    onToggleFullscreen = { nav = nav.toggleFullscreen() },
                 )
                 part != null -> PartDetailScreen(
                     part = part,

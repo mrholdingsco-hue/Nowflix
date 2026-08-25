@@ -4,9 +4,14 @@ import android.graphics.Bitmap
 import android.os.SystemClock
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -128,6 +133,36 @@ class ScreenshotTest {
         rule.mainClock.autoAdvance = true
         rule.waitForIdle()
         capture("05_player_controls_hidden")
+    }
+
+    /**
+     * v1.1.0 fullscreen: the up-next column and the title/meta block are gone, the video fills the
+     * screen, and "←  목록으로" + the progress bar/time + the "작게 보기" button are all still there.
+     */
+    @Test
+    fun playerScreen_fullscreen() {
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            var fullscreen by remember { mutableStateOf(false) }
+            MaterialTheme {
+                PlayerScreen(
+                    videos = fixtureVideos(),
+                    startIndex = 0,
+                    onBack = {},
+                    isFullscreen = fullscreen,
+                    onToggleFullscreen = { fullscreen = !fullscreen },
+                )
+            }
+        }
+        rule.mainClock.advanceTimeBy(300)
+        rule.waitForIdle()
+        rule.onNodeWithText("전체화면").performClick()
+        // Past the 180ms transition, but short of the 3s controls auto-hide.
+        rule.mainClock.advanceTimeBy(400)
+        rule.waitForIdle()
+        rule.onNodeWithText("작게 보기").assertIsDisplayed()
+        capture("08_player_fullscreen")
+        rule.mainClock.autoAdvance = true
     }
 
     @Test

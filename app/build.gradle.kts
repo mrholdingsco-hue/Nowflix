@@ -38,8 +38,10 @@ android {
         applicationId = "kr.prism.nowflix"
         minSdk = 29
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        // v1.1.0 — 재생 화면 전체화면 + PIN 유예(grace) 수정. 병원 태블릿에는 v1.0.0(versionCode 1)이
+        // 깔려 있으므로, 같은 키로 서명해 adb install -r -t 로 덮어쓰기 업데이트한다.
+        versionCode = 2
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

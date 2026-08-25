@@ -10,7 +10,7 @@ on:
       tag:
         description: "릴리즈 태그"
         required: true
-        default: "v1.0.0"
+        default: "v1.1.0"
       source:
         description: "zip 출처"
         required: true
@@ -110,7 +110,7 @@ jobs:
         if: inputs.source == 'rebuild'
         run: |
           rm -rf pkg && mkdir -p pkg/nowflix/dist pkg/nowflix/scripts
-          cp app/build/outputs/apk/release/app-release.apk pkg/nowflix/dist/nowflix-1.0.0.apk
+          cp app/build/outputs/apk/release/app-release.apk pkg/nowflix/dist/nowflix-1.1.0.apk
           cp scripts/install.sh scripts/uninstall.sh pkg/nowflix/scripts/
           chmod +x pkg/nowflix/scripts/*.sh
           cp -r docs pkg/nowflix/docs
@@ -156,7 +156,7 @@ jobs:
             '' \
             '아래 `nowflix-install-package.zip` 을 내려받아 압축을 풀면 `nowflix/` 폴더가 생깁니다.' \
             '' \
-            '- `dist/nowflix-1.0.0.apk` — 태블릿에 설치할 앱' \
+            '- `dist/nowflix-1.1.0.apk` — 태블릿에 설치할 앱' \
             '- `scripts/install.sh`, `scripts/uninstall.sh` — PC 에서 실행하는 설치/제거 스크립트' \
             '- `docs/설치가이드.md` — 설치 담당자용 순서 문서 (먼저 읽어주세요)' \
             '- `docs/onsite-checklist.md` — 현장 점검 체크리스트' \
@@ -180,7 +180,7 @@ jobs:
           else
             gh release create "$TAG" nowflix-install-package.zip \
               --target "$GITHUB_SHA" \
-              --title "NOWFLIX 키오스크 설치 패키지 v1.0.0" \
+              --title "NOWFLIX 키오스크 설치 패키지 v1.1.0" \
               --notes-file notes.md
           fi
           rm -f notes.md

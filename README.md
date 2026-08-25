@@ -30,7 +30,7 @@ nowflix-kiosk/
 │  ├─ install.sh           # 태블릿 1대 끝까지 세팅 (연결→설치→잠금→확인)
 │  └─ uninstall.sh         # 잠금 해제 + 앱 삭제
 ├─ docs/                   # 인계 문서 (한국어, 비개발자용)
-├─ dist/                   # 릴리즈 산출물 (nowflix-1.0.0.apk)
+├─ dist/                   # 릴리즈 산출물 (nowflix-1.1.0.apk)
 ├─ references/             # 조사 결과 캐시 (재조사 금지)
 ├─ ci-viewer/              # (임시) CI 스크린샷 뷰어 — 납품 후 삭제 대상
 └─ .github/workflows/      # CI (계측/스크린샷/키오스크 잠금 검증)
@@ -72,7 +72,7 @@ RELEASE_KEY_PASSWORD=<key 비밀번호>
 $ANDROID_HOME/build-tools/35.0.0/apksigner verify --print-certs \
     app/build/outputs/apk/release/app-release.apk
 ```
-- `versionCode 1` / `versionName "1.0.0"`
+- `versionCode 2` / `versionName "1.1.0"`
 - 난독화·리소스 축소 **끔**(`minifyEnabled=false`, `shrinkResources=false`) — WebView 탐색/직렬화 보호
 - `debuggable false`
 - `android:testOnly="true"` **유지** → 잠금 사고 시 공장초기화 없이 ADB로 복구 가능.
