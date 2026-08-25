@@ -3,6 +3,12 @@
 > **프로젝트 상태: STEP 1~10 완료 — 릴리즈 빌드·서명·인계 문서까지 마감(v1.0.0).**
 > 산출물: `dist/nowflix-1.0.0.apk` (서명됨). 설치: `scripts/install.sh`. 인계 문서: `docs/`.
 
+## PIN 갇힘 구조 제거 (2026-08-25) — DONE ✅ (배포 전)
+- **실측 확인 2건**: Supabase `settings.admin_pin_hash` = `75e8f9d3…` = **SHA-256("150302") 일치** → 관리자 웹 PIN 저장 로직(`api/settings/pin/route.ts`)은 **정상, 변경 없음**. anon 키로 앱과 동일 쿼리(`settings?select=…&id=eq.1`) → **HTTP 200** + 새 해시 정상 반환.
+- **진짜 원인**: 값 문제가 아니라 **반영 타이밍 데드락**. 태블릿은 30분 주기로만 설정을 갱신하는데, 즉시 반영용 "설정 새로고침" 버튼이 **PIN 화면 뒤**에 있어 새 PIN을 모르는 태블릿에 들어갈 방법이 없었음.
+- **수정**: ①캐시 전용 `previous_admin_pin_hash` — 리포지토리가 캐시 덮어쓰기 전에 읽어 직전 PIN을 유예 PIN으로 보존, 변화 없는 갱신에선 이월(30분 자동 갱신이 유예 PIN을 만료시키지 않음), 슬롯은 항상 1개. ②`PinGate.submit(alsoAcceptHash)` — 최신값+유예값 둘 다 허용(빈 해시는 매칭 안 함, 5회/30초 잠금 규칙 유지). ③PIN 입력창이 뜨는 순간 원격 설정 즉시 재요청(실패는 무음). 커밋 `2812566` 푸시 완료. `:app:testDebugUnitTest` **100/100**(신규 8: PinGate 2 · Repository 6).
+- **주의 — 이 수정은 APK를 새로 설치해야 효력**. 현재 병원 태블릿(v1.0.0)에는 미적용이므로, 지금 당장은 **30분 주기 자동 갱신을 기다리면 150302가 통한다**. 그 전이라면 **옛 PIN 739104**로 들어가 "설정 새로고침"을 누르면 즉시 반영됨. (태블릿 실기기 미검증 — VM에 기기 없음.)
+
 ## 재발 방지 (2026-08-25) — Supabase 자동 일시정지 대응 — DONE ✅
 - **keepalive**: `.github/workflows/supabase-keepalive.yml` — 3일마다(`17 2 */3 * *`) anon 키로 `settings?select=id&limit=1` 핑. 일시 실패는 `::warning`으로 조용히 넘기고 **3회 연속 실패 시에만 exit 1**(빨간 불 + 알림 메일). 시크릿 `SUPABASE_URL`/`SUPABASE_ANON_KEY` 누락 시 한국어 안내 후 중단. 로컬 실측: 성공 exit 0 / 1회 실패→성공 exit 0 / 3회 연속 실패 exit 1 + step summary.
 - **`/api/login`**: `attemptLogin` 예외(=DB 연결 문제)를 try/catch로 잡아 **503 + "일시적인 서버 문제입니다. 잠시 후 다시 시도해주세요."**, 비밀번호 불일치 401과 분리. 영문 원문·스택은 `console.error`(서버)만. `getWebAuth`는 행 없으면 명시적 throw. 라우트 회귀 테스트 3종 추가(503/401/200), vitest에 `@` 별칭. `npm test` 25/25, `tsc --noEmit` 0.
